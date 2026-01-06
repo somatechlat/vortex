@@ -1,0 +1,9 @@
+# VORTEX Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vortex-dev
+  labels:
+    app.kubernetes.io/name: vortex
+    app.kubernetes.io/part-of: vortex-gen-3
+    environment: development

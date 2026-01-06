@@ -1,0 +1,187 @@
+// VORTEX Worker Protocol
+// Worker-specific messages and executor definitions
+// By The Engineer (10-Persona Collective - Implementation)
+// Per SRS Section 3.5 (Compute Fabric)
+
+syntax = "proto3";
+
+package vortex.worker;
+
+import "control.proto";
+
+// ═══════════════════════════════════════════════════════════════
+//                    WORKER STATUS
+// ═══════════════════════════════════════════════════════════════
+
+// Full worker status report
+message WorkerStatus {
+  // Slot ID
+  uint32 slot_id = 1;
+  
+  // Process info
+  uint32 pid = 2;
+  WorkerPhase phase = 3;
+  
+  // Resource usage
+  ResourceUsage resources = 4;
+  
+  // Current job (if any)
+  CurrentJob current_job = 5;
+  
+  // Loaded executors
+  repeated string loaded_executors = 6;
+  
+  // Loaded models in VRAM
+  repeated LoadedModel loaded_models = 7;
+}
+
+// Worker lifecycle phase
+enum WorkerPhase {
+  PHASE_UNKNOWN = 0;
+  PHASE_BOOTING = 1;
+  PHASE_IDLE = 2;
+  PHASE_BUSY = 3;
+  PHASE_DRAINING = 4;
+  PHASE_SHUTDOWN = 5;
+  PHASE_ERROR = 6;
+}
+
+// Resource usage snapshot
+message ResourceUsage {
+  // VRAM
+  uint64 vram_total = 1;
+  uint64 vram_used = 2;
+  uint64 vram_reserved = 3;
+  
+  // System RAM
+  uint64 ram_rss = 4;
+  
+  // CPU usage (0-100%)
+  float cpu_percent = 5;
+  
+  // GPU utilization (0-100%)
+  float gpu_percent = 6;
+}
+
+// Currently executing job
+message CurrentJob {
+  string job_id = 1;
+  string node_type = 2;
+  uint64 started_at_ms = 3;
+  float progress = 4;
+  string phase = 5;  // Human-readable phase
+}
+
+// Loaded model info
+message LoadedModel {
+  string name = 1;
+  string hash = 2;
+  uint64 vram_bytes = 3;
+  uint64 loaded_at_ms = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//                    EXECUTOR REGISTRY
+// ═══════════════════════════════════════════════════════════════
+
+// Register available executors
+message ExecutorRegistration {
+  repeated ExecutorInfo executors = 1;
+}
+
+// Executor information
+message ExecutorInfo {
+  // Node type this executor handles
+  string node_type = 1;
+  
+  // Python module path
+  string module_path = 2;
+  
+  // Class name
+  string class_name = 3;
+  
+  // Capabilities
+  ExecutorCapabilities capabilities = 4;
+}
+
+// Executor capabilities
+message ExecutorCapabilities {
+  // Supports GPU execution
+  bool gpu_enabled = 1;
+  
+  // Supports half precision
+  bool fp16_enabled = 2;
+  
+  // Supports batching
+  bool batching_enabled = 3;
+  
+  // Maximum batch size
+  uint32 max_batch_size = 4;
+  
+  // Estimated VRAM per execution (bytes)
+  uint64 estimated_vram = 5;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//                    MODEL MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+// Request to load a model
+message LoadModelRequest {
+  string model_path = 1;
+  string model_hash = 2;
+  
+  // Load options
+  bool half_precision = 3;
+  int32 gpu_index = 4;
+  
+  // Priority (higher = more important to keep)
+  uint32 priority = 5;
+}
+
+// Model load result
+message LoadModelResult {
+  bool success = 1;
+  string error = 2;
+  
+  // Memory info
+  uint64 vram_used = 3;
+  uint64 load_time_ms = 4;
+}
+
+// Request to unload a model
+message UnloadModelRequest {
+  string model_name = 1;
+  string model_hash = 2;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//                    SANDBOX VIOLATIONS
+// ═══════════════════════════════════════════════════════════════
+
+// Security violation report
+message SecurityViolation {
+  // Worker that detected it
+  uint32 slot_id = 1;
+  
+  // Violation type
+  ViolationType type = 2;
+  
+  // Details
+  string description = 3;
+  string call_stack = 4;
+  
+  // Node that caused it
+  string node_type = 5;
+  string job_id = 6;
+}
+
+// Security violation types
+enum ViolationType {
+  VIOLATION_UNKNOWN = 0;
+  VIOLATION_BLOCKED_IMPORT = 1;
+  VIOLATION_BLOCKED_SYSCALL = 2;
+  VIOLATION_FS_ACCESS = 3;
+  VIOLATION_NETWORK_ACCESS = 4;
+  VIOLATION_EXCESSIVE_MEMORY = 5;
+}

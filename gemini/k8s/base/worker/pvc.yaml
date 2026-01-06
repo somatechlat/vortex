@@ -1,0 +1,13 @@
+# VORTEX Models PVC for worker
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vortex-models-pvc
+  namespace: vortex-dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard

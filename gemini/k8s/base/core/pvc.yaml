@@ -1,0 +1,17 @@
+# VORTEX Persistent Volume Claim
+# Production-like settings with limited size
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vortex-data-pvc
+  namespace: vortex-dev
+  labels:
+    app.kubernetes.io/name: vortex
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard

@@ -1,52 +1,57 @@
 [package]
 name = "vortex-core"
-version = "0.1.0"
-edition = "2021"
-authors = ["VORTEX Team"]
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 description = "Core Engine for VORTEX-GEN 3.0 - Centaur Architecture"
-license = "MIT"
 
 [dependencies]
-# Async Runtime
-tokio = { version = "1.35", features = ["full", "signal"] }
+vortex-protocol = { path = "../vortex-protocol" }
+vortex-telemetry = { path = "../vortex-telemetry" }
 
-# Incremental Computation (Salsa-like pattern)
-salsa = "0.17"
+# Async Runtime
+tokio.workspace = true
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde.workspace = true
+serde_json.workspace = true
 
 # Hashing
-sha2 = "0.10"
+sha2.workspace = true
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite"] }
+sqlx.workspace = true
 
 # IPC - Unix Domain Sockets
-nix = { version = "0.27", features = ["socket", "mman", "signal"] }
+nix.workspace = true
 
-# Python FFI
-pyo3 = { version = "0.20", features = ["extension-module"] }
+# Shared Memory
+memmap2.workspace = true
+
+# Concurrency
+dashmap.workspace = true
+parking_lot.workspace = true
+
+# HTTP Server
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
 
 # Logging
-tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 # Error Handling
-thiserror = "1.0"
-anyhow = "1.0"
+thiserror.workspace = true
+anyhow.workspace = true
 
 # UUID Generation
-uuid = { version = "1.6", features = ["v4"] }
+uuid.workspace = true
 
 [dev-dependencies]
 criterion = "0.5"
 tempfile = "3.9"
 
-[[bench]]
-name = "large_graph"
-harness = false
-
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]

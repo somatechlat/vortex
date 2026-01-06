@@ -1,0 +1,165 @@
+// VORTEX Control Protocol
+// Control messages between Host and Worker
+// By The Oracle (10-Persona Collective - Documentation)
+// Per SRS Section 3.4.3 (IPC Protocol)
+
+syntax = "proto3";
+
+package vortex.control;
+
+// ═══════════════════════════════════════════════════════════════
+//                    CONTROL MESSAGES
+// Host → Worker and Worker → Host control plane messages
+// ═══════════════════════════════════════════════════════════════
+
+// Request worker to execute a job
+message JobRequest {
+  // Unique job identifier
+  string job_id = 1;
+  
+  // Node type to execute (e.g., "com.vortex.ksampler")
+  string node_type = 2;
+  
+  // JSON-encoded parameters
+  bytes params_json = 3;
+  
+  // Input tensor references (name -> TensorRef)
+  repeated TensorInput inputs = 4;
+  
+  // Output tensor specs (name -> dtype/shape hint)
+  repeated TensorOutputSpec outputs = 5;
+}
+
+// Tensor input reference
+message TensorInput {
+  string name = 1;
+  TensorRef tensor = 2;
+}
+
+// Reference to a tensor in shared memory
+message TensorRef {
+  // Offset in SHM arena
+  uint64 offset = 1;
+  
+  // Total bytes
+  uint64 size_bytes = 2;
+  
+  // Data type (0=f32, 1=f16, 2=bf16, 3=i32, 4=i64, 5=u8)
+  uint32 dtype = 3;
+  
+  // Shape dimensions
+  repeated uint32 shape = 4;
+}
+
+// Expected output tensor specification
+message TensorOutputSpec {
+  string name = 1;
+  uint32 dtype = 2;
+  repeated uint32 expected_shape = 3;  // May be empty if unknown
+}
+
+// Worker response after job completion
+message JobResult {
+  // Job ID (must match request)
+  string job_id = 1;
+  
+  // Success or failure
+  bool success = 2;
+  
+  // Output tensors (only if success=true)
+  repeated TensorOutput outputs = 3;
+  
+  // Error info (only if success=false)
+  JobError error = 4;
+  
+  // Execution metrics
+  JobMetrics metrics = 5;
+}
+
+// Output tensor from worker
+message TensorOutput {
+  string name = 1;
+  TensorRef tensor = 2;
+}
+
+// Job error details
+message JobError {
+  // Error code (VE-XXX)
+  string code = 1;
+  
+  // Human-readable message
+  string message = 2;
+  
+  // Python traceback (if applicable)
+  string traceback = 3;
+}
+
+// Execution metrics
+message JobMetrics {
+  // Execution time in microseconds
+  uint64 execution_us = 1;
+  
+  // Peak VRAM usage in bytes
+  uint64 peak_vram_bytes = 2;
+  
+  // Tokens processed (for text models)
+  uint32 tokens_processed = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//                    SYSTEM MESSAGES
+// ═══════════════════════════════════════════════════════════════
+
+// Worker registration handshake
+message WorkerHandshake {
+  // Protocol version
+  uint32 protocol_version = 1;
+  
+  // Worker slot ID
+  uint32 slot_id = 2;
+  
+  // Process ID
+  uint32 pid = 3;
+  
+  // GPU index (if applicable)
+  int32 gpu_index = 4;
+  
+  // Available VRAM in bytes
+  uint64 available_vram = 5;
+}
+
+// Host acknowledgment
+message HandshakeAck {
+  bool accepted = 1;
+  string rejection_reason = 2;
+  uint64 shm_base_offset = 3;
+}
+
+// Heartbeat (bidirectional)
+message Heartbeat {
+  uint64 timestamp_ms = 1;
+  uint32 slot_id = 2;
+  
+  // Current status
+  WorkerState state = 3;
+  
+  // Current VRAM usage
+  uint64 vram_used = 4;
+}
+
+// Worker state enum
+enum WorkerState {
+  WORKER_IDLE = 0;
+  WORKER_BUSY = 1;
+  WORKER_ERROR = 2;
+  WORKER_SHUTDOWN = 3;
+}
+
+// Shutdown request
+message ShutdownRequest {
+  // Grace period in milliseconds
+  uint32 grace_period_ms = 1;
+  
+  // Reason for shutdown
+  string reason = 2;
+}

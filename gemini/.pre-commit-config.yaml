@@ -1,0 +1,51 @@
+# VORTEX Pre-commit Configuration
+# https://pre-commit.com
+
+repos:
+  # General
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+  # Rust
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all --
+        language: system
+        types: [rust]
+        pass_filenames: false
+      
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy --workspace -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  # Python
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # JavaScript/TypeScript
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd ui && bun run lint'
+        language: system
+        types: [javascript, typescript, svelte]
+        pass_filenames: false

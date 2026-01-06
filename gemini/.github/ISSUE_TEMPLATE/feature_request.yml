@@ -1,0 +1,68 @@
+name: Feature Request
+description: Suggest a new feature for VORTEX
+title: "[FEAT] "
+labels: ["enhancement", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature!
+        Please describe what you'd like to see added.
+        
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve?
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+      placeholder: It would be great if...
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component would this affect?
+      options:
+        - Core Engine (Rust)
+        - Worker (Python)
+        - Frontend UI (Svelte)
+        - Registry
+        - Infrastructure
+        - Documentation
+        - Multiple/Other
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Critical (blocking work)
+        - High (significantly improves workflow)
+        - Medium (nice to have)
+        - Low (minor improvement)
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any workarounds or alternative approaches?
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Screenshots, mockups, references, etc.

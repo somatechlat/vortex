@@ -1,0 +1,78 @@
+name: Bug Report
+description: Report a bug in VORTEX
+title: "[BUG] "
+labels: ["bug", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this bug!
+        Please fill out the information below to help us investigate.
+        
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear description of the bug
+      placeholder: What happened vs what you expected
+    validations:
+      required: true
+      
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this bug?
+      placeholder: |
+        1. Open VORTEX
+        2. Add a node...
+        3. See error
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - Core Engine (Rust)
+        - Worker (Python)
+        - Frontend UI (Svelte)
+        - IPC/SHM
+        - Registry
+        - Infrastructure
+        - Unknown
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical (crash/data loss)
+        - High (major feature broken)
+        - Medium (feature impaired)
+        - Low (cosmetic/minor)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Paste any error messages or logs
+      render: shell
+      
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, versions, etc.
+      placeholder: |
+        - OS: macOS 14.2
+        - VORTEX Version: 0.1.0
+        - GPU: NVIDIA RTX 4090

@@ -1,0 +1,43 @@
+[package]
+name = "vortex-registry"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Package registry and dependency solver for VORTEX custom nodes"
+
+[dependencies]
+vortex-protocol = { path = "../vortex-protocol" }
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# Async
+tokio.workspace = true
+
+# HTTP Client
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+toml = "0.8"
+
+# Python AST parsing
+rustpython-parser = "0.3"
+
+# Semver
+semver = { version = "1.0", features = ["serde"] }
+
+# Hashing
+sha2.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3.9"

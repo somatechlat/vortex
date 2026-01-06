@@ -200,6 +200,7 @@ impl SharedMemory {
         use nix::unistd::ftruncate;
         use std::ffi::CString;
         use std::num::NonZeroUsize;
+        use std::os::fd::AsFd;
 
         let name = CString::new(SHM_NAME).unwrap();
         
@@ -229,14 +230,14 @@ impl SharedMemory {
                 NonZeroUsize::new(SHM_SIZE).unwrap(),
                 ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
                 MapFlags::MAP_SHARED,
-                &fd,
+                Some(fd.as_fd()),
                 0,
             ).map_err(|e| VortexError::ShmFailure {
                 reason: format!("mmap failed: {}", e),
             })?
         };
         
-        let base = ptr.as_ptr() as *mut u8;
+        let base = ptr as *mut u8;
         
         // Initialize header if creating
         if create {

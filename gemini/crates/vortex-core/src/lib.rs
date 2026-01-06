@@ -4,6 +4,10 @@
 //! - Rust Host for control plane (scheduling, memory arbitration)
 //! - Python Workers for compute plane (ML inference)
 //! - Zero-Copy IPC via POSIX Shared Memory
+
+// Scaffold phase: allow dead_code until all modules are connected
+#![allow(dead_code, unused_variables, unused_imports, clippy::new_without_default)]
+#![allow(unexpected_cfgs)]
 //!
 //! # Architecture
 //!

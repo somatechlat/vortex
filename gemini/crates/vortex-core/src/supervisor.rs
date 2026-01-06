@@ -3,7 +3,7 @@
 //! Implements SRS Section 3.6.1 (Supervisor Trait) and Section 3.7.1 (Worker Lifecycle)
 
 use crate::error::{VortexError, VortexResult};
-use crate::shm::{SharedMemory, WorkerStatus};
+use crate::shm::WorkerStatus;
 use std::collections::HashMap;
 use std::process::{Child, Command};
 

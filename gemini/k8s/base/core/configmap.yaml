@@ -1,0 +1,23 @@
+# VORTEX Core Engine ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vortex-config
+  namespace: vortex-dev
+data:
+  VORTEX_ENV: "development"
+  VORTEX_LOG_FORMAT: "json"
+  VORTEX_METRICS_ENABLED: "true"
+  
+  # Port Authority (11000-11999)
+  VORTEX_HTTP_PORT: "11188"
+  VORTEX_WS_PORT: "11189"
+  VORTEX_METRICS_PORT: "11191"
+  VORTEX_YJS_PORT: "11192"
+  
+  # SHM Configuration
+  VORTEX_SHM_SIZE: "2147483648"  # 2GB
+  VORTEX_MAX_WORKERS: "4"
+  
+  # Database
+  VORTEX_DB_POOL_SIZE: "5"

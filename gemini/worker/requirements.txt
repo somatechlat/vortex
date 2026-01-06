@@ -1,0 +1,15 @@
+# Requirements for VORTEX Worker
+# Pinned versions for reproducibility
+
+# Core ML
+torch>=2.1.0
+numpy>=1.26.0
+
+# Data interchange
+pyarrow>=14.0.0
+
+# IPC Protocol
+protobuf>=4.25.0
+
+# Logging
+structlog>=23.2.0

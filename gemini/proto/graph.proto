@@ -1,0 +1,219 @@
+// VORTEX Graph Protocol
+// Graph definition and serialization
+// By The Sage (10-Persona Collective - Architecture)
+// Per SRS Section 3.2 (Graph Module)
+
+syntax = "proto3";
+
+package vortex.graph;
+
+// ═══════════════════════════════════════════════════════════════
+//                    GRAPH DEFINITION
+// Complete graph structure for transmission and persistence
+// ═══════════════════════════════════════════════════════════════
+
+// Complete graph structure
+message Graph {
+  // Unique graph ID
+  string id = 1;
+  
+  // Human-readable name
+  string name = 2;
+  
+  // Version for optimistic locking
+  uint64 version = 3;
+  
+  // All nodes in the graph
+  repeated Node nodes = 4;
+  
+  // All edges connecting nodes
+  repeated Edge edges = 5;
+  
+  // Graph-level metadata
+  GraphMetadata metadata = 6;
+}
+
+// Graph metadata
+message GraphMetadata {
+  // Creation timestamp (Unix ms)
+  uint64 created_at = 1;
+  
+  // Last modified timestamp
+  uint64 modified_at = 2;
+  
+  // Author user ID
+  string author_id = 3;
+  
+  // Tags for organization
+  repeated string tags = 4;
+  
+  // Custom key-value pairs
+  map<string, string> custom = 5;
+}
+
+// Node definition
+message Node {
+  // Unique node ID within graph
+  string id = 1;
+  
+  // Node type (e.g., "com.vortex.ksampler")
+  string type = 2;
+  
+  // Display position (for UI)
+  Position position = 3;
+  
+  // Node parameters (JSON-encoded)
+  bytes params_json = 4;
+  
+  // Semantic zoom level (0-3)
+  uint32 zoom_level = 5;
+  
+  // Collapsed state for groups
+  bool collapsed = 6;
+}
+
+// 2D position for UI layout
+message Position {
+  float x = 1;
+  float y = 2;
+}
+
+// Edge connecting two nodes
+message Edge {
+  // Unique edge ID
+  string id = 1;
+  
+  // Source node.port
+  PortRef source = 2;
+  
+  // Target node.port
+  PortRef target = 3;
+}
+
+// Reference to a specific port on a node
+message PortRef {
+  // Node ID
+  string node_id = 1;
+  
+  // Port name (e.g., "latent", "model")
+  string port_name = 2;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//                    NODE DEFINITION (Registry)
+// Schema for available node types
+// ═══════════════════════════════════════════════════════════════
+
+// Node type definition from registry
+message NodeDef {
+  // Unique type ID
+  string type_id = 1;
+  
+  // Human-readable display name
+  string display_name = 2;
+  
+  // Category for grouping
+  string category = 3;
+  
+  // Description
+  string description = 4;
+  
+  // Input port definitions
+  repeated PortDef inputs = 5;
+  
+  // Output port definitions
+  repeated PortDef outputs = 6;
+  
+  // Author
+  string author = 7;
+  
+  // Version
+  string version = 8;
+}
+
+// Port definition
+message PortDef {
+  // Port name (machine-readable)
+  string name = 1;
+  
+  // Display label
+  string label = 2;
+  
+  // Data type (LATENT, IMAGE, MODEL, etc.)
+  DataType data_type = 3;
+  
+  // Required (no default value)
+  bool required = 4;
+  
+  // Default value (JSON-encoded, for inputs only)
+  bytes default_json = 5;
+  
+  // Tooltip description
+  string description = 6;
+}
+
+// Data types for ports (Signal Bus lanes)
+enum DataType {
+  DATA_UNKNOWN = 0;
+  DATA_LATENT = 1;
+  DATA_IMAGE = 2;
+  DATA_MODEL = 3;
+  DATA_CLIP = 4;
+  DATA_VAE = 5;
+  DATA_CONDITIONING = 6;
+  DATA_MASK = 7;
+  DATA_CONTROLNET = 8;
+  DATA_STRING = 9;
+  DATA_INT = 10;
+  DATA_FLOAT = 11;
+  DATA_BOOLEAN = 12;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//                    EXECUTION
+// ═══════════════════════════════════════════════════════════════
+
+// Execution plan (topologically sorted)
+message ExecutionPlan {
+  // Graph ID being executed
+  string graph_id = 1;
+  
+  // Execution ID
+  string execution_id = 2;
+  
+  // Ordered list of nodes to execute
+  repeated string node_ids = 3;
+  
+  // Node hashes for cache lookup
+  map<string, bytes> node_hashes = 4;
+  
+  // Estimated total execution time (ms)
+  uint64 estimated_time_ms = 5;
+}
+
+// Execution progress update
+message ExecutionProgress {
+  string execution_id = 1;
+  string current_node_id = 2;
+  uint32 nodes_completed = 3;
+  uint32 nodes_total = 4;
+  float progress = 5;  // 0.0 - 1.0
+  uint64 elapsed_ms = 6;
+}
+
+// Execution result
+message ExecutionResult {
+  string execution_id = 1;
+  bool success = 2;
+  
+  // Output tensors by node.port
+  map<string, bytes> outputs = 3;
+  
+  // Error if failed
+  string error_code = 4;
+  string error_message = 5;
+  
+  // Metrics
+  uint64 total_time_ms = 6;
+  uint64 peak_vram_bytes = 7;
+}

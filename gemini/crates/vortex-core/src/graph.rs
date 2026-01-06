@@ -134,6 +134,156 @@ impl GraphDSL {
     pub fn node_count(&self) -> usize {
         self.nodes.len()
     }
+
+    /// Detect cycles in the graph using DFS (P2.1.3)
+    /// Returns Ok(()) if no cycles, Err with cycle nodes if found
+    pub fn detect_cycles(&self) -> Result<(), Vec<String>> {
+        use std::collections::HashSet;
+
+        let mut visited = HashSet::new();
+        let mut rec_stack = HashSet::new();
+        let mut cycle_nodes = Vec::new();
+
+        for node_id in self.nodes.keys() {
+            if !visited.contains(node_id)
+                && self.dfs_detect_cycle(node_id, &mut visited, &mut rec_stack, &mut cycle_nodes)
+            {
+                return Err(cycle_nodes);
+            }
+        }
+        Ok(())
+    }
+
+    /// DFS helper for cycle detection
+    fn dfs_detect_cycle(
+        &self,
+        node_id: &str,
+        visited: &mut std::collections::HashSet<String>,
+        rec_stack: &mut std::collections::HashSet<String>,
+        cycle_nodes: &mut Vec<String>,
+    ) -> bool {
+        visited.insert(node_id.to_string());
+        rec_stack.insert(node_id.to_string());
+
+        for child_id in self.get_children(node_id) {
+            if !visited.contains(child_id) {
+                if self.dfs_detect_cycle(child_id, visited, rec_stack, cycle_nodes) {
+                    cycle_nodes.push(node_id.to_string());
+                    return true;
+                }
+            } else if rec_stack.contains(child_id) {
+                cycle_nodes.push(child_id.to_string());
+                cycle_nodes.push(node_id.to_string());
+                return true;
+            }
+        }
+
+        rec_stack.remove(node_id);
+        false
+    }
+
+    /// Validate the entire graph (P2.1.4 + P2.1.5)
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        // 1. Check for cycles
+        if let Err(nodes) = self.detect_cycles() {
+            return Err(ValidationError::CycleDetected { nodes });
+        }
+
+        // 2. Check all nodes referenced in links exist
+        for link in &self.links {
+            if !self.nodes.contains_key(&link.source.0) {
+                return Err(ValidationError::NodeNotFound {
+                    node_id: link.source.0.clone(),
+                });
+            }
+            if !self.nodes.contains_key(&link.target.0) {
+                return Err(ValidationError::NodeNotFound {
+                    node_id: link.target.0.clone(),
+                });
+            }
+        }
+
+        // 3. Check for duplicate links
+        let mut link_set = std::collections::HashSet::new();
+        for link in &self.links {
+            let key = (
+                link.source.0.clone(),
+                link.source.1.clone(),
+                link.target.0.clone(),
+                link.target.1.clone(),
+            );
+            if !link_set.insert(key) {
+                return Err(ValidationError::DuplicateLink {
+                    source: link.source.clone(),
+                    target: link.target.clone(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Topological sort using Kahn's algorithm
+    pub fn topological_sort(&self) -> Result<Vec<String>, ValidationError> {
+        // First validate
+        self.validate()?;
+
+        let mut in_degree: HashMap<String, usize> = HashMap::new();
+        let mut result = Vec::new();
+
+        // Initialize in-degrees
+        for node_id in self.nodes.keys() {
+            in_degree.insert(node_id.clone(), 0);
+        }
+
+        // Count incoming edges
+        for link in &self.links {
+            *in_degree.entry(link.target.0.clone()).or_insert(0) += 1;
+        }
+
+        // Find all nodes with no incoming edges
+        let mut queue: Vec<String> = in_degree
+            .iter()
+            .filter(|(_, &deg)| deg == 0)
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        // Sort for deterministic order
+        queue.sort();
+
+        while let Some(node_id) = queue.pop() {
+            result.push(node_id.clone());
+
+            for child_id in self.get_children(&node_id) {
+                if let Some(deg) = in_degree.get_mut(child_id) {
+                    *deg -= 1;
+                    if *deg == 0 {
+                        queue.push(child_id.to_string());
+                        queue.sort();
+                    }
+                }
+            }
+        }
+
+        if result.len() != self.nodes.len() {
+            // Cycle detected (shouldn't happen after validate, but safety check)
+            return Err(ValidationError::CycleDetected {
+                nodes: vec!["unknown".to_string()],
+            });
+        }
+
+        Ok(result)
+    }
+}
+
+/// Graph validation errors
+#[derive(Debug, Clone)]
+pub enum ValidationError {
+    CycleDetected { nodes: Vec<String> },
+    NodeNotFound { node_id: String },
+    DuplicateLink { source: PortID, target: PortID },
+    TypeMismatch { source_type: String, target_type: String },
+    RequiredInputMissing { node_id: String, port_name: String },
 }
 
 impl Node {
@@ -227,5 +377,79 @@ mod tests {
         let hash2 = node.compute_hash(&[]);
         
         assert_ne!(hash1, hash2, "Hash should change when params change");
+    }
+
+    #[test]
+    fn test_cycle_detection() {
+        let mut graph = GraphDSL::new();
+        
+        graph.add_node(Node::new("a", "Op::A"));
+        graph.add_node(Node::new("b", "Op::B"));
+        graph.add_node(Node::new("c", "Op::C"));
+        
+        // A -> B -> C -> A (cycle!)
+        graph.add_link(("a".into(), "out".into()), ("b".into(), "in".into()));
+        graph.add_link(("b".into(), "out".into()), ("c".into(), "in".into()));
+        graph.add_link(("c".into(), "out".into()), ("a".into(), "in".into()));
+        
+        let result = graph.detect_cycles();
+        assert!(result.is_err(), "Should detect cycle");
+    }
+
+    #[test]
+    fn test_no_cycle() {
+        let mut graph = GraphDSL::new();
+        
+        graph.add_node(Node::new("a", "Op::A"));
+        graph.add_node(Node::new("b", "Op::B"));
+        graph.add_node(Node::new("c", "Op::C"));
+        
+        // A -> B -> C (no cycle)
+        graph.add_link(("a".into(), "out".into()), ("b".into(), "in".into()));
+        graph.add_link(("b".into(), "out".into()), ("c".into(), "in".into()));
+        
+        let result = graph.detect_cycles();
+        assert!(result.is_ok(), "Should not detect cycle");
+    }
+
+    #[test]
+    fn test_topological_sort() {
+        let mut graph = GraphDSL::new();
+        
+        graph.add_node(Node::new("a", "Op::A"));
+        graph.add_node(Node::new("b", "Op::B"));
+        graph.add_node(Node::new("c", "Op::C"));
+        graph.add_node(Node::new("d", "Op::D"));
+        
+        // Diamond: A -> B, A -> C, B -> D, C -> D
+        graph.add_link(("a".into(), "out".into()), ("b".into(), "in".into()));
+        graph.add_link(("a".into(), "out".into()), ("c".into(), "in".into()));
+        graph.add_link(("b".into(), "out".into()), ("d".into(), "in".into()));
+        graph.add_link(("c".into(), "out".into()), ("d".into(), "in".into()));
+        
+        let result = graph.topological_sort().expect("Should sort");
+        
+        // D should come before B and C, A should come first
+        let pos_a = result.iter().position(|x| x == "a").unwrap();
+        let pos_b = result.iter().position(|x| x == "b").unwrap();
+        let pos_c = result.iter().position(|x| x == "c").unwrap();
+        let pos_d = result.iter().position(|x| x == "d").unwrap();
+        
+        assert!(pos_a < pos_b, "A should come before B");
+        assert!(pos_a < pos_c, "A should come before C");
+        assert!(pos_b < pos_d, "B should come before D");
+        assert!(pos_c < pos_d, "C should come before D");
+    }
+
+    #[test]
+    fn test_validate_missing_node() {
+        let mut graph = GraphDSL::new();
+        
+        graph.add_node(Node::new("a", "Op::A"));
+        // Link to non-existent node
+        graph.add_link(("a".into(), "out".into()), ("nonexistent".into(), "in".into()));
+        
+        let result = graph.validate();
+        assert!(matches!(result, Err(ValidationError::NodeNotFound { .. })));
     }
 }

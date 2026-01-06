@@ -1,0 +1,19 @@
+[package]
+name = "vortex-protocol"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Shared protocol types and protobuf definitions for VORTEX"
+
+[dependencies]
+prost.workspace = true
+prost-types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+
+[build-dependencies]
+prost-build = "0.12"

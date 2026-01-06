@@ -1,0 +1,80 @@
+# VORTEX Core Engine Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vortex-core
+  namespace: vortex-dev
+  labels:
+    app.kubernetes.io/name: vortex-core
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vortex-core
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vortex-core
+        app.kubernetes.io/component: backend
+    spec:
+      containers:
+        - name: core
+          image: vortex-core:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 11188
+              protocol: TCP
+            - name: websocket
+              containerPort: 11189
+              protocol: TCP
+            - name: metrics
+              containerPort: 11191
+              protocol: TCP
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: VORTEX_DB_PATH
+              value: "/data/vortex.db"
+            - name: VORTEX_IPC_PATH
+              value: "/tmp/vortex.sock"
+          envFrom:
+            - configMapRef:
+                name: vortex-config
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "2"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: shm
+              mountPath: /dev/shm
+            - name: ipc
+              mountPath: /tmp
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vortex-data-pvc
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+        - name: ipc
+          emptyDir: {}

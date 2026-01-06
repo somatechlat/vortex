@@ -1,0 +1,130 @@
+# VORTEX Tiltfile
+# Local Kubernetes development with hot reload
+# Cluster: Colima with 10GB RAM limit
+
+# ═══════════════════════════════════════════════════════════════
+#                    CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+
+# Resource limits per VIBE Rule 24
+config.define_string("namespace", args=True)
+cfg = config.parse()
+namespace = cfg.get("namespace", "vortex-dev")
+
+# Ensure namespace exists
+k8s_yaml(blob("""
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: %s
+  labels:
+    app.kubernetes.io/name: vortex
+    app.kubernetes.io/part-of: vortex-gen-3
+""" % namespace))
+
+# ═══════════════════════════════════════════════════════════════
+#                    CORE ENGINE (Rust)
+# ═══════════════════════════════════════════════════════════════
+
+docker_build(
+    'vortex-core',
+    context='.',
+    dockerfile='docker/core/Dockerfile',
+    live_update=[
+        sync('./crates', '/app/crates'),
+        run('cargo build --release', trigger=['./crates']),
+    ],
+)
+
+k8s_yaml('k8s/base/core/deployment.yaml')
+k8s_yaml('k8s/base/core/service.yaml')
+k8s_yaml('k8s/base/core/configmap.yaml')
+
+k8s_resource(
+    'vortex-core',
+    port_forwards=[
+        '11188:11188',  # HTTP API
+        '11189:11189',  # WebSocket
+        '11191:11191',  # Metrics
+    ],
+    labels=['backend'],
+    resource_deps=['vortex-worker'],
+)
+
+# ═══════════════════════════════════════════════════════════════
+#                    COMPUTE FABRIC (Python)
+# ═══════════════════════════════════════════════════════════════
+
+docker_build(
+    'vortex-worker',
+    context='.',
+    dockerfile='docker/worker/Dockerfile',
+    live_update=[
+        sync('./worker', '/app/worker'),
+    ],
+)
+
+k8s_yaml('k8s/base/worker/deployment.yaml')
+
+k8s_resource(
+    'vortex-worker',
+    labels=['worker'],
+)
+
+# ═══════════════════════════════════════════════════════════════
+#                    FRONTEND UI (Svelte)
+# ═══════════════════════════════════════════════════════════════
+
+docker_build(
+    'vortex-ui',
+    context='ui',
+    dockerfile='docker/ui/Dockerfile',
+    live_update=[
+        sync('./ui/src', '/app/src'),
+        run('bun run build', trigger=['./ui/src']),
+    ],
+)
+
+k8s_yaml('k8s/base/ui/deployment.yaml')
+k8s_yaml('k8s/base/ui/service.yaml')
+
+k8s_resource(
+    'vortex-ui',
+    port_forwards=['11100:80'],  # UI port
+    labels=['frontend'],
+)
+
+# ═══════════════════════════════════════════════════════════════
+#                    RESOURCE QUOTAS
+# ═══════════════════════════════════════════════════════════════
+
+k8s_yaml('k8s/base/resourcequota.yaml')
+k8s_yaml('k8s/base/limitrange.yaml')
+
+# ═══════════════════════════════════════════════════════════════
+#                    OBSERVABILITY
+# ═══════════════════════════════════════════════════════════════
+
+# Prometheus (optional)
+# k8s_yaml('observability/prometheus/prometheus.yml')
+
+# ═══════════════════════════════════════════════════════════════
+#                    WORKFLOW
+# ═══════════════════════════════════════════════════════════════
+
+# Local development workflow
+local_resource(
+    'cargo-check',
+    cmd='cargo check --workspace',
+    deps=['./crates'],
+    labels=['lint'],
+    auto_init=False,
+)
+
+local_resource(
+    'rust-test',
+    cmd='cargo test --workspace',
+    deps=['./crates'],
+    labels=['test'],
+    auto_init=False,
+)

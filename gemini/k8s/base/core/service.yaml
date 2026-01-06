@@ -1,0 +1,26 @@
+# VORTEX Core Engine Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: vortex-core
+  namespace: vortex-dev
+  labels:
+    app.kubernetes.io/name: vortex-core
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 11188
+      targetPort: http
+      protocol: TCP
+    - name: websocket
+      port: 11189
+      targetPort: websocket
+      protocol: TCP
+    - name: metrics
+      port: 11191
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: vortex-core

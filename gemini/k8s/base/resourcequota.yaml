@@ -1,0 +1,27 @@
+# VORTEX Kubernetes Resource Quota
+# Limits for the entire vortex-dev namespace
+# Total cluster limit: 10GB per VIBE Rule 24
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vortex-quota
+  namespace: vortex-dev
+spec:
+  hard:
+    # Memory: 8GB usable (leaving 2GB for system)
+    requests.memory: "6Gi"
+    limits.memory: "8Gi"
+    
+    # CPU: 8 cores max
+    requests.cpu: "4"
+    limits.cpu: "8"
+    
+    # Storage
+    requests.storage: "20Gi"
+    persistentvolumeclaims: "10"
+    
+    # Pod limits
+    pods: "10"
+    services: "5"
+    configmaps: "20"
+    secrets: "10"

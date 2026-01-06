@@ -1,0 +1,11 @@
+# VORTEX Pod Disruption Budget for Worker
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vortex-worker-pdb
+  namespace: vortex-dev
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vortex-worker
