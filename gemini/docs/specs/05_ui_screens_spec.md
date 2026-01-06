@@ -1,441 +1,190 @@
-# VORTEX UI Screen Catalog & Flow Specification
-## Complete User Interface Documentation
-
-> **Standard**: ISO 9241 (Usability)  
-> **Version**: 1.0.0  
-> **Status**: PLANNING
-
----
-
-## 1. SCREEN INVENTORY
-
-### 1.1 Complete Screen List
-
-| ID | Screen Name | Purpose | Entry Point | Exit Points |
-|----|-------------|---------|-------------|-------------|
-| **S-001** | Loading | Application bootstrap | URL navigation | → Canvas |
-| **S-002** | Canvas | Main workspace | Loading complete | → Settings, Gallery |
-| **S-003** | Settings | User preferences | Canvas → Toolbar | → Canvas |
-| **S-004** | Node Palette | Browse available nodes | Canvas → Sidebar | → Canvas |
-| **S-005** | Property Panel | Edit selected node | Node selection | → Canvas |
-| **S-006** | Queue Panel | Execution queue | Canvas → Toolbar | → Canvas |
-| **S-007** | Gallery | View outputs | Canvas → Toolbar | → Canvas |
-| **S-008** | Context Menu | Quick actions | Right-click | → Canvas |
-| **S-009** | Command Palette | Keyboard navigation | Ctrl+K | → Canvas |
-| **S-010** | Connection Modal | Port connection wizard | Port drag | → Canvas |
+# Software Requirements Specification (SRS): UI Screens & Interaction
+**Project**: VORTEX-GEN 3.0 "Centaur"
+**Module**: Frontend UI (`vortex-ui`)
+**Version**: 9.0.0 (ISO Standard)
+**Date**: 2026-01-06
+**Standard**: ISO/IEC 29148:2018
 
 ---
 
-## 2. SCREEN HIERARCHY
+## 1. Introduction
 
-```mermaid
-graph TD
-    LOAD[S-001: Loading] --> CANVAS[S-002: Canvas]
-    
-    CANVAS --> TOOLBAR{Toolbar Actions}
-    CANVAS --> SIDEBAR{Sidebar Panels}
-    CANVAS --> CONTEXT{Context Actions}
-    
-    TOOLBAR --> SETTINGS[S-003: Settings]
-    TOOLBAR --> QUEUE[S-006: Queue]
-    TOOLBAR --> GALLERY[S-007: Gallery]
-    
-    SIDEBAR --> PALETTE[S-004: Node Palette]
-    SIDEBAR --> PROPS[S-005: Property Panel]
-    
-    CONTEXT --> CTXMENU[S-008: Context Menu]
-    CONTEXT --> CMDPAL[S-009: Command Palette]
-    
-    SETTINGS --> CANVAS
-    QUEUE --> CANVAS
-    GALLERY --> CANVAS
-    PALETTE --> CANVAS
-    PROPS --> CANVAS
+### 1.1 Purpose
+This SRS specifies the **Visual and Interaction Design** for the VORTEX "Flow Stream" interface. It replaces the traditional Node Graph with a revolutionary **"Vertical Rack" Paradigm**, focusing on semantic signal flow, glassmorphic aesthetics, and cinematic immersion.
+
+### 1.2 Scope
+The UI defines the **"Vortex Rack"**, a vertical stack of atomic processing units connected by a unified **"Signal Bus"**.
+**Key Concepts**:
+*   **The Signal Bus**: A vertical, multi-lane data highway replacing wires.
+*   **The Rack**: A stack of horizontal, glassmorphic "Blade" units.
+*   **The Inspector**: A precise, context-aware sidebar for parameter tuning.
+*   **Kernel AI**: An embedded LLM agent for natural language control.
+
+### 1.3 Definitions
+| Term | Definition |
+| :--- | :--- |
+| **Rack Unit (RU)** | A standardized horizontal UI container (e.g., Loader, Sampler). |
+| **Signal Bus** | The visual representation of data flow (Vertical Lines). |
+| **Blade** | The glassmorphic visual style of a Rack Unit. |
+| **Tap** | A connection point where a Unit reads/writes to the Bus. |
+| **Soma Identity** | The "Mitchell Hybrid" aesthetic (Mint/Cream/Teal, Geist Font). |
+
+---
+
+## 2. Visual Design System (SomaStack)
+
+### 2.1 Color Palette "Mitchell Hybrid"
+| Token | Hex | Role | Usage |
+| :--- | :--- | :--- | :--- |
+| **Void** | `#0a0a0a` | Background | Deepest background layer. |
+| **Teal Deep** | `#0F4C5C` | Canvas | The "Cinematic" ambient glow. |
+| **Mint** | `#98DDCA` | Axion | Primary Action, Active Signal, Success. |
+| **Cream** | `#F5F5F5` | Text | Primary Typography, Icons. |
+| **Glass** | `rgba(255,255,255,0.05)` | Surface | Panel backgrounds (Blur 24px). |
+| **Bus-1** | `#98DDCA` | Signal | Lane 1 (e.g., Latent). |
+| **Bus-2** | `#0F4C5C` | Signal | Lane 2 (e.g., Model). |
+| **Bus-3** | `#c4b5fd` | Signal | Lane 3 (e.g., CLIP). |
+
+### 2.2 Typography "Geist"
+*   **Headers**: `Geist Sans` (Bold, Tracking -0.02em).
+*   **Technical**: `Geist Mono` (Regular, Tabular Numerals).
+*   **Scale**:
+    *   `Display`: 32px (App Title)
+    *   `H1`: 18px (Unit Titles)
+    *   `Body`: 14px (Parameters)
+    *   `Micro`: 12px (Bus Labels)
+
+### 2.3 Component Tokens
+*   **Radius**: `18px` (Standard for all Blades and Panels).
+*   **Border**: `1px solid rgba(255,255,255,0.1)` (Inner Glow).
+*   **Shadow**: `0 20px 40px rgba(0,0,0,0.4)` (Cinematic Depth).
+*   **Blur**: `backdrop-filter: blur(24px)` (Heavy Frostation).
+
+---
+
+## 3. Screen Specifications
+
+### 3.1 Screen S-001: The Vortex Rack (Main Workspace)
+**ID**: `SCR-MAIN`
+**Description**: The primary interface for creating generative flows. A full-screen, frameless environment.
+
+#### 3.1.1 Layout Structure
+1.  **Global Background**:
+    *   A deep, animating gradient (`#0a0a0a` to `#0F4C5C`).
+    *   **Bloom**: A central, soft-focus "Bloom" representing the creative potential.
+    *   **Grid**: Faint, precision grid lines (5% opacity).
+2.  **The Signal Bus (Left)**:
+    *   **Location**: Fixed, Left of Center.
+    *   **Visual**: 8 parallel glowing lines running Top-to-Bottom.
+    *   **Behavior**: Lines pulse when data flows.
+3.  **The Rack (Center)**:
+    *   **Location**: Centered interactions.
+    *   **Content**: Stack of "Rack Units" (S-002, S-003...).
+    *   **Interaction**: Sortable via Drag-and-Drop.
+4.  **The Sidebar (Right)**:
+    *   **Location**: Fixed Right (Collapsible).
+    *   **Content**: Signal Inspector (S-100) + Kernel AI (S-101).
+5.  **The Toolbox (Bottom)**:
+    *   **Location**: Fixed Bottom Center.
+    *   **Visual**: Floating Glass Pill (MacOS Dock style).
+
+#### 3.1.2 Interactions
+*   **Scroll**: Vertical scroll moves the entire Rack up/down.
+*   **Semantic Zoom**:
+    *   **Zoom Out**: See the entire "Pipeline".
+    *   **Zoom In**: Focus on a single "Blade" to edit params inline.
+
+---
+
+### 3.2 Screen S-002: Rack Unit "Blade" (Generic)
+**ID**: `CMP-BLADE`
+**Description**: The atomic container for a processing node.
+
+#### 3.2.1 Visual Anatomy
 ```
-
----
-
-## 3. DETAILED SCREEN SPECIFICATIONS
-
-### S-001: Loading Screen
-
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | Display while application bootstraps |
-| **Duration** | < 1000ms (requirement P-02) |
-| **Components** | Logo, Progress Bar, Status Text |
-| **Transitions** | Fade out → Canvas |
-
-**Loading Sequence:**
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant App
-    participant API
-    participant WS
-    
-    Browser->>App: Load index.html
-    App->>App: Parse JavaScript
-    App->>API: GET /health
-    API-->>App: 200 OK
-    App->>WS: Connect ws://host/ws
-    WS-->>App: Connected
-    App->>App: Fade to Canvas
+┌────────────────────────────────────────────────────────┐
+│  ┌─┐  LOADER // JUGGERNAUT_XL             [::: Handle] │
+│  │•│←─(Tap)                                            │
+│  └─┘                                                   │
+│      [ Thumbnail / Content Area ]                      │
+│                                                        │
+│   STATUS: READY 🟢                   VRAM: 4.2GB       │
+└────────────────────────────────────────────────────────┘
 ```
+*   **Tap (Left)**: A connector dot that aligns with a Bus Lane. Clicking it toggles connection.
+*   **Header**: `Geist Mono` Uppercase. Title of the unit.
+*   **Handle (Right)**: Drag handle for reordering.
+*   **Body**: Context-sensitive content (Image, Text, Graph).
 
-**States:**
-| State | Progress | Message |
-|-------|----------|---------|
-| INIT | 0% | "Initializing..." |
-| CONNECTING | 30% | "Connecting to server..." |
-| SYNCING | 60% | "Loading workspace..." |
-| READY | 100% | "Ready" |
+### 3.3 Screen S-003: Specific Unit Types
 
----
+#### A. Loader Unit
+*   **Content**: Large preview of the Checkpoint's cover art.
+*   **Controls**: Dropdown for `ckpt_name`, `vae`, `clip_skip`.
+*   **Visual**: Background of the Blade is the blurred cover art.
 
-### S-002: Canvas Screen (Main Workspace)
+#### B. Prompt Unit
+*   **Content**: A clean, multi-line `textarea` using `Geist Mono`.
+*   **Syntax Highlighting**: Weights `(word:1.2)` are highlighted Mint.
+*   **Controls**: Positive/Negative toggle tabs.
 
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | Primary workspace for node graph editing |
-| **Layout** | Full viewport with overlays |
-| **Interaction** | Mouse, Touch, Keyboard |
-| **Persistence** | Auto-save every 30s |
-
-**Layout Zones:**
-```
-┌──────────────────────────────────────────────────────────────┐
-│  TOOLBAR (fixed top, 48px height)                            │
-├───────────────┬──────────────────────────────────────────────┤
-│               │                                              │
-│   SIDEBAR     │              CANVAS AREA                     │
-│   (256px)     │         (infinite virtual space)             │
-│               │                                              │
-│  ┌─────────┐  │    ┌─────────┐         ┌─────────┐          │
-│  │ Palette │  │    │  Node   │────────▶│  Node   │          │
-│  └─────────┘  │    └─────────┘         └─────────┘          │
-│               │                                              │
-│  ┌─────────┐  │                                              │
-│  │ Props   │  │         MINIMAP (bottom-right)               │
-│  └─────────┘  │             ┌────────┐                       │
-│               │             │ ▫▫▫    │                       │
-└───────────────┴─────────────└────────┴───────────────────────┘
-```
-
-**Canvas States:**
-| State | Description | Visual |
-|-------|-------------|--------|
-| IDLE | No active interaction | Normal cursor |
-| PANNING | Middle mouse drag | Hand cursor, canvas moves |
-| SELECTING | Marquee selection | Rectangle overlay |
-| CONNECTING | Dragging edge | Wire preview |
-| MOVING_NODE | Dragging node | Node follows cursor |
-| ZOOMING | Scroll wheel | Scale animation |
-
-**Zoom Levels & LOD:**
-| Zoom Range | LOD Level | Rendering Mode |
-|------------|-----------|----------------|
-| > 0.6 | FULL | DOM with all widgets |
-| 0.3 - 0.6 | LITE | DOM with simplified UI |
-| < 0.3 | WEBGL | GPU-rendered rectangles |
+#### C. Sampler Unit
+*   **Content**: A real-time **Denoise Graph** (Waveform).
+*   **Animation**: The waveform flattens as noise is removed (Entropy reduction).
+*   **Controls**: `steps`, `cfg`, `sampler_name` sliders.
 
 ---
 
-### S-003: Settings Screen
+### 3.4 Screen S-100: Signal Inspector
+**ID**: `PNL-INSPECT`
+**Description**: The precision engineering panel.
 
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | Configure user preferences and system settings |
-| **Type** | Modal overlay |
-| **Width** | 600px |
-| **Sections** | General, Appearance, Performance, Shortcuts, Advanced |
+#### 3.4.1 Content
+*   **Header**: "SIGNAL INSPECTOR"
+*   **Bus Status**: A live readout of the 8 bus lanes.
+    *   `L1: LATENT [1, 4, 64, 64] (ACTIVE)`
+    *   `L2: IMAGE [Empty]`
+*   **Node Properties**: Detailed table of every input/output for the *selected* Rack Unit.
+*   **Execution Metrics**: `Time: 12.4s`, `VRAM Peak: 8.1GB`.
 
-**Settings Categories:**
+### 3.5 Screen S-101: Kernel AI
+**ID**: `PNL-KERNEL`
+**Description**: The Chat interface for the "Centaur" agent.
 
-| Category | Settings |
-|----------|----------|
-| **General** | Language, Auto-save interval, Confirmation dialogs |
-| **Appearance** | Theme (dark/light), Accent color, Font size, Grid visibility |
-| **Performance** | WebGL enabled, Max workers, VRAM limit, Cache size |
-| **Shortcuts** | Customizable keyboard bindings |
-| **Advanced** | API endpoint, Debug mode, Telemetry opt-out |
-
----
-
-### S-004: Node Palette
-
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | Browse and add nodes to canvas |
-| **Type** | Sidebar panel |
-| **Search** | Fuzzy matching |
-| **Organization** | Categories → Subcategories → Nodes |
-
-**Node Categories:**
-```
-📁 Loaders
-   ├── Load Checkpoint
-   ├── Load LoRA
-   └── Load VAE
-
-📁 Conditioning
-   ├── CLIP Text Encode
-   ├── CLIP Set Last Layer
-   └── Conditioning Combine
-
-📁 Sampling
-   ├── KSampler
-   ├── KSampler Advanced
-   └── Sampler Custom
-
-📁 Latent
-   ├── Empty Latent Image
-   ├── Latent Upscale
-   └── Latent from Batch
-
-📁 Image
-   ├── Save Image
-   ├── Preview Image
-   ├── Load Image
-   └── Image Scale
-
-📁 VAE
-   ├── VAE Decode
-   ├── VAE Encode
-   └── VAE Decode Tiled
-
-📁 Utils
-   ├── Reroute
-   ├── Note
-   └── Primitive
-```
+#### 3.5.1 Content
+*   **Location**: Bottom of Sidebar.
+*   **Input**: "Enter command or query kernel..."
+*   **Response**: Streaming text responses in `Geist Mono`.
+*   **Capabilities**: Can auto-configure rack units based on natural language (e.g., "Set up a flow for anime portraits").
 
 ---
 
-### S-005: Property Panel
+## 4. User Flow Sequences
 
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | Edit parameters of selected node |
-| **Type** | Sidebar panel |
-| **Context** | Changes based on selected node |
-| **Validation** | Real-time with error feedback |
+### 4.1 Flow F-01: Creating a Flow
+1.  User opens Vortex. **SCR-MAIN** loads (Empty Rack).
+2.  User clicks "+" on Toolbox.
+3.  User selects "Basic Pipeline".
+4.  System injects 3 Units: **Loader**, **Prompt**, **Sampler**.
+5.  System auto-taps them to Bus Lanes 1, 2, 3.
+6.  User types "Cyberpunk City" in **Prompt Unit**.
+7.  User clicks "Render" (Toolbox).
+8.  **Sampler Unit** visualizes the denoise process.
+9.  Final Image appears in a new **Display Unit** at bottom.
 
-**Widget Types:**
-| Widget | Use Case | Validation |
-|--------|----------|------------|
-| **Slider** | Numeric range | Min/Max bounds |
-| **Number Input** | Precise numeric | Step, bounds |
-| **Text Input** | Strings, prompts | Length limit |
-| **Dropdown** | Enum selection | Valid options |
-| **Checkbox** | Boolean toggle | None |
-| **Color Picker** | Color values | Valid hex/rgb |
-| **File Upload** | Image/model files | Type, size |
-| **Seed** | Random seed | 64-bit integer |
+### 4.2 Flow F-02: Tuning a Signal
+1.  User clicks on the **Sampler Unit**.
+2.  **Signal Inspector** (S-100) slides out from right.
+3.  User adjusts "CFG Scale" slider.
+4.  User sees real-time breakdown of VRAM impact in Inspector.
 
 ---
 
-### S-006: Queue Panel
+## 5. Transition Matrix
 
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | View and manage execution queue |
-| **Type** | Slide-out panel |
-| **Updates** | Real-time via WebSocket |
-
-**Queue Item States:**
-| State | Icon | Description |
-|-------|------|-------------|
-| PENDING | ⏳ | Waiting in queue |
-| RUNNING | 🔄 | Currently executing |
-| COMPLETED | ✅ | Finished successfully |
-| FAILED | ❌ | Error occurred |
-| CANCELLED | 🚫 | User cancelled |
-
-**Queue Actions:**
-| Action | Scope | Effect |
-|--------|-------|--------|
-| Cancel | Single | Abort current/pending job |
-| Clear Queue | All pending | Remove all pending |
-| Retry | Failed | Re-queue failed job |
-| View Output | Completed | Open in Gallery |
-
----
-
-### S-007: Gallery
-
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | View generated outputs |
-| **Type** | Full-screen overlay |
-| **Layout** | Grid with preview |
-| **Actions** | Download, Delete, Compare, Send to Canvas |
-
-**Gallery Views:**
-| View | Layout | Best For |
-|------|--------|----------|
-| Grid | Thumbnails | Quick browsing |
-| Single | Full image | Detailed inspection |
-| Compare | Side-by-side | A/B comparison |
-| Filmstrip | Horizontal scroll | Batch review |
-
----
-
-### S-008: Context Menu
-
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | Quick actions at cursor position |
-| **Trigger** | Right-click |
-| **Timeout** | Auto-close after 5s |
-
-**Context Actions by Target:**
-
-| Target | Actions |
-|--------|---------|
-| **Canvas** | Add Node, Paste, Select All, Fit View |
-| **Node** | Delete, Duplicate, Group, Bypass, Pin |
-| **Edge** | Delete, Convert to Reroute |
-| **Selection** | Delete, Duplicate, Group, Align |
-| **Port** | Disconnect, Convert |
-
----
-
-### S-009: Command Palette
-
-| Attribute | Value |
-|-----------|-------|
-| **Purpose** | Keyboard-driven command access |
-| **Trigger** | Ctrl+K / Cmd+K |
-| **Search** | Fuzzy command matching |
-
-**Command Categories:**
-| Category | Examples |
-|----------|----------|
-| **Node** | Add KSampler, Add CLIP Encode |
-| **Edit** | Undo, Redo, Cut, Copy, Paste |
-| **View** | Zoom In, Zoom Out, Fit View, Reset |
-| **File** | Save, Export, Import |
-| **Execute** | Queue, Cancel, Clear Queue |
-
----
-
-## 4. USER FLOW SEQUENCES
-
-### 4.1 First-Time User Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Loading
-    participant Canvas
-    participant Palette
-    participant Props
-    
-    User->>Loading: Open VORTEX URL
-    Loading->>Canvas: App Ready
-    Canvas->>User: Empty workspace
-    User->>Palette: Click "Add Node"
-    Palette->>User: Show categories
-    User->>Palette: Select "Load Checkpoint"
-    Palette->>Canvas: Add node
-    Canvas->>Props: Select new node
-    Props->>User: Show model selector
-    User->>Props: Choose SD model
-    Props->>Canvas: Update node
-```
-
-### 4.2 Basic Image Generation Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Canvas
-    participant Queue
-    participant Worker
-    participant Gallery
-    
-    User->>Canvas: Build workflow
-    Note over Canvas: 5 nodes connected
-    User->>Canvas: Click "Queue Prompt"
-    Canvas->>Queue: Add to queue
-    Queue->>Worker: Dispatch job
-    Worker->>Queue: Progress updates
-    Queue->>Canvas: Node progress bars
-    Worker->>Queue: Complete
-    Queue->>Gallery: Add output
-    Gallery->>User: Show notification
-    User->>Gallery: View result
-```
-
-### 4.3 Collaborative Editing Flow
-
-```mermaid
-sequenceDiagram
-    participant UserA
-    participant Server
-    participant UserB
-    
-    UserA->>Server: Move node X to (100, 200)
-    Server->>UserA: Confirm move
-    Server->>UserB: Sync: Node X moved
-    UserB->>UserB: Update canvas
-    
-    UserB->>Server: Add new node
-    Server->>UserB: Confirm add
-    Server->>UserA: Sync: New node added
-    UserA->>UserA: Update canvas
-```
-
----
-
-## 5. TRANSITION MATRIX
-
-| From | To | Trigger | Animation |
-|------|-----|---------|-----------|
-| Loading | Canvas | Data ready | Fade (300ms) |
-| Canvas | Settings | Toolbar click | Slide down |
-| Canvas | Gallery | Toolbar click | Slide left |
-| Canvas | Context Menu | Right-click | Pop in |
-| Settings | Canvas | Close/ESC | Slide up |
-| Gallery | Canvas | Close/ESC | Slide right |
-
----
-
-## 6. KEYBOARD SHORTCUTS
-
-| Shortcut | Action | Scope |
-|----------|--------|-------|
-| **Space** | Pan mode | Canvas |
-| **Delete** | Delete selected | Canvas |
-| **Ctrl+Z** | Undo | Global |
-| **Ctrl+Y** | Redo | Global |
-| **Ctrl+C** | Copy | Selection |
-| **Ctrl+V** | Paste | Canvas |
-| **Ctrl+K** | Command palette | Global |
-| **Ctrl+S** | Save | Global |
-| **Ctrl+Enter** | Queue prompt | Global |
-| **F** | Fit view | Canvas |
-| **1-9** | Zoom level | Canvas |
-| **G** | Toggle grid | Canvas |
-| **M** | Toggle minimap | Canvas |
-| **H** | Hide UI | Canvas |
-
----
-
-## 7. RESPONSIVE BREAKPOINTS
-
-| Breakpoint | Width | Layout Changes |
-|------------|-------|----------------|
-| **Desktop XL** | ≥ 1920px | Full layout, wide sidebar |
-| **Desktop** | 1280-1919px | Full layout |
-| **Laptop** | 1024-1279px | Collapsed sidebar |
-| **Tablet** | 768-1023px | Overlay sidebar, touch optimized |
-| **Mobile** | < 768px | Single panel, vertical stack |
-
----
-
-**Document Status**: COMPLETE  
-**Total Screens**: 10  
-**Total Flows**: 3  
-**Ready for Implementation**: ✅
+| From | Action | To | Transition Style |
+| :--- | :--- | :--- | :--- |
+| **Main Rack** | Click Inspector Toggle | **Inspector Open** | Sidebar slides in (Spring physics). |
+| **Main Rack** | Click Kernel Icon | **Kernel Open** | Chat expands from bottom-right. |
+| **Main Rack** | Scroll Down | **Rack Scroll** | Parallax scroll (Bus moves slower than Units). |
+| **Unit** | Drag Handle | **Reorder** | Unit lifts (`z-index`), others yield gap. |
