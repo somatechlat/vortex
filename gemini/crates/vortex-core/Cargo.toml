@@ -1,0 +1,52 @@
+[package]
+name = "vortex-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["VORTEX Team"]
+description = "Core Engine for VORTEX-GEN 3.0 - Centaur Architecture"
+license = "MIT"
+
+[dependencies]
+# Async Runtime
+tokio = { version = "1.35", features = ["full", "signal"] }
+
+# Incremental Computation (Salsa-like pattern)
+salsa = "0.17"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Hashing
+sha2 = "0.10"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite"] }
+
+# IPC - Unix Domain Sockets
+nix = { version = "0.27", features = ["socket", "mman", "signal"] }
+
+# Python FFI
+pyo3 = { version = "0.20", features = ["extension-module"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Error Handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# UUID Generation
+uuid = { version = "1.6", features = ["v4"] }
+
+[dev-dependencies]
+criterion = "0.5"
+tempfile = "3.9"
+
+[[bench]]
+name = "large_graph"
+harness = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
