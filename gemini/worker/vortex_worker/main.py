@@ -69,8 +69,10 @@ def main() -> NoReturn:
             ipc.connect()
             logger.info(f"Connected to IPC socket: {config.ipc_path}")
         except FileNotFoundError:
+            ipc = None  # Ensure ipc is None for standalone mode
             logger.warning(f"IPC socket not found: {config.ipc_path} - running in standalone mode")
         except Exception as ipc_err:
+            ipc = None  # Ensure ipc is None for standalone mode
             logger.warning(f"IPC connection failed: {ipc_err} - running in standalone mode")
 
         # Main event loop
