@@ -8,13 +8,18 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy workspace
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 COPY crates ./crates
+COPY proto ./proto
 
 # Build release
+RUN cargo generate-lockfile && \
+    cargo update -p home --precise 0.5.9 && \
+    cargo update -p base64ct --precise 1.6.0
 RUN cargo build --release --package vortex-core
 
 # ═══════════════════════════════════════════════════════════════
