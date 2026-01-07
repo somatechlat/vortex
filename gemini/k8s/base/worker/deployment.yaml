@@ -1,4 +1,4 @@
-# VORTEX Compute Worker Deployment
+# VORTEX Compute Worker Deployment - Production-Grade
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,8 +7,14 @@ metadata:
   labels:
     app.kubernetes.io/name: vortex-worker
     app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: vortex
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: vortex-worker
@@ -17,11 +23,19 @@ spec:
       labels:
         app.kubernetes.io/name: vortex-worker
         app.kubernetes.io/component: worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: worker
           image: vortex-worker:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
           env:
             - name: VORTEX_SLOT_ID
               valueFrom:
@@ -35,14 +49,35 @@ spec:
               value: "0"
             - name: PYTHONUNBUFFERED
               value: "1"
+            - name: LOG_LEVEL
+              value: "INFO"
           resources:
             requests:
-              memory: "1Gi"
-              cpu: "500m"
+              memory: "512Mi"
+              cpu: "250m"
             limits:
-              memory: "4Gi"
-              cpu: "2"
-              # GPU: nvidia.com/gpu: 1  # Uncomment for GPU
+              memory: "2Gi"
+              cpu: "1"
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import sys; sys.exit(0)"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import sys; sys.exit(0)"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           volumeMounts:
             - name: shm
               mountPath: /dev/shm
@@ -50,6 +85,11 @@ spec:
               mountPath: /tmp
             - name: models
               mountPath: /models
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
       volumes:
         - name: shm
           emptyDir:
