@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: milvus
+  namespace: vortex
   labels:
     app: milvus
 spec:
@@ -64,6 +65,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: milvus
+  namespace: vortex
   labels:
     app: milvus
 spec:
@@ -82,9 +84,10 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: milvus-pvc
+  namespace: vortex
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 2Gi

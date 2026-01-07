@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
+  namespace: vortex
   labels:
     app: postgres
 spec:
@@ -61,6 +62,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres
+  namespace: vortex
   labels:
     app: postgres
 spec:
@@ -76,17 +78,19 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-pvc
+  namespace: vortex
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 5Gi
+      storage: 1Gi
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: postgres-credentials
+  namespace: vortex
 type: Opaque
 stringData:
   password: "vortex-dev-password"

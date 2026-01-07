@@ -17,7 +17,7 @@ spec:
     limits.cpu: "8"
     
     # Storage: Real volumes
-    requests.storage: "50Gi"
+    requests.storage: "15Gi"
     persistentvolumeclaims: "20"
     
     # Pod limits (production-like)

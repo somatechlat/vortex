@@ -1,0 +1,109 @@
+/* VORTEX Design Tokens
+ * Mitchell Hybrid Palette + Geist Typography
+ * Per SDD Section 4 Design System
+ */
+
+:root {
+  /* ═══════════════════════════════════════════════════════════════
+   *                    COLOR PALETTE: MITCHELL HYBRID
+   * ═══════════════════════════════════════════════════════════════ */
+  
+  /* Background layers */
+  --vtx-void: #0a0a0a;
+  --vtx-teal-deep: #0F4C5C;
+  --vtx-canvas: #121212;
+  
+  /* Primary colors */
+  --vtx-mint: #98DDCA;
+  --vtx-cream: #F5F5F5;
+  
+  /* Semantic colors */
+  --vtx-success: #98DDCA;
+  --vtx-warning: #FFD166;
+  --vtx-error: #EF476F;
+  --vtx-info: #118AB2;
+  
+  /* Signal bus lane colors */
+  --vtx-bus-1: #98DDCA;  /* Latent */
+  --vtx-bus-2: #0F4C5C;  /* Model */
+  --vtx-bus-3: #c4b5fd;  /* CLIP */
+  --vtx-bus-4: #FFD166;  /* VAE */
+  --vtx-bus-5: #F78764;  /* Mask */
+  --vtx-bus-6: #73D2DE;  /* Conditioning */
+  --vtx-bus-7: #EF476F;  /* ControlNet */
+  --vtx-bus-8: #A5A5A5;  /* Reserved */
+  
+  /* Glass surfaces */
+  --vtx-glass: rgba(255, 255, 255, 0.05);
+  --vtx-glass-hover: rgba(255, 255, 255, 0.08);
+  --vtx-glass-active: rgba(255, 255, 255, 0.12);
+  --vtx-glass-border: rgba(255, 255, 255, 0.1);
+  
+  /* ═══════════════════════════════════════════════════════════════
+   *                    TYPOGRAPHY: GEIST
+   * ═══════════════════════════════════════════════════════════════ */
+  
+  --vtx-font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --vtx-font-mono: 'Geist Mono', 'SF Mono', 'Consolas', monospace;
+  
+  /* Scale */
+  --vtx-text-display: 32px;
+  --vtx-text-h1: 18px;
+  --vtx-text-body: 14px;
+  --vtx-text-micro: 12px;
+  
+  /* ═══════════════════════════════════════════════════════════════
+   *                    SPACING
+   * ═══════════════════════════════════════════════════════════════ */
+  
+  --vtx-space-xs: 4px;
+  --vtx-space-sm: 8px;
+  --vtx-space-md: 16px;
+  --vtx-space-lg: 24px;
+  --vtx-space-xl: 32px;
+  --vtx-space-xxl: 48px;
+  
+  /* ═══════════════════════════════════════════════════════════════
+   *                    COMPONENT TOKENS
+   * ═══════════════════════════════════════════════════════════════ */
+  
+  /* Borders and radius */
+  --vtx-radius: 18px;
+  --vtx-radius-sm: 8px;
+  --vtx-radius-pill: 9999px;
+  
+  /* Shadows */
+  --vtx-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  --vtx-shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
+  
+  /* Blur */
+  --vtx-blur: 24px;
+  --vtx-blur-sm: 8px;
+  
+  /* Transitions */
+  --vtx-transition-fast: 150ms ease;
+  --vtx-transition-normal: 250ms ease;
+  --vtx-transition-slow: 400ms ease;
+  
+  /* ═══════════════════════════════════════════════════════════════
+   *                    LAYOUT
+   * ═══════════════════════════════════════════════════════════════ */
+  
+  --vtx-sidebar-width: 320px;
+  --vtx-toolbox-height: 64px;
+  --vtx-bus-width: 120px;
+  --vtx-blade-min-height: 80px;
+  
+  /* ═══════════════════════════════════════════════════════════════
+   *                    Z-INDEX SCALE
+   * ═══════════════════════════════════════════════════════════════ */
+  
+  --vtx-z-canvas: 0;
+  --vtx-z-rack: 10;
+  --vtx-z-blade: 20;
+  --vtx-z-blade-dragging: 100;
+  --vtx-z-sidebar: 200;
+  --vtx-z-overlay: 500;
+  --vtx-z-modal: 1000;
+  --vtx-z-toast: 2000;
+}
