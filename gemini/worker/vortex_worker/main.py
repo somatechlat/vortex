@@ -58,24 +58,37 @@ def main() -> NoReturn:
             shm = ShmArena(config.shm_name)
             logger.info(f"Connected to existing SHM arena: {config.shm_name}")
 
-        # Connect to IPC socket
-        ipc = IPCSocket(config.ipc_path)
-        ipc.connect()
-        logger.info(f"Connected to IPC socket: {config.ipc_path}")
-
         # Register worker slot
         shm.register_worker(config.slot_id)
+        shm.set_status(config.slot_id, 2)  # IDLE
+
+        # Try to connect to IPC socket (optional - core may not be running)
+        ipc = None
+        try:
+            ipc = IPCSocket(config.ipc_path)
+            ipc.connect()
+            logger.info(f"Connected to IPC socket: {config.ipc_path}")
+        except FileNotFoundError:
+            logger.warning(f"IPC socket not found: {config.ipc_path} - running in standalone mode")
+        except Exception as ipc_err:
+            logger.warning(f"IPC connection failed: {ipc_err} - running in standalone mode")
 
         # Main event loop
         logger.info("Entering main event loop")
         while not shutdown:
+            # Update heartbeat
+            shm.update_heartbeat(config.slot_id)
+
+            # If no IPC, just keep heartbeat alive
+            if ipc is None:
+                import time
+                time.sleep(1)
+                continue
+
             # Wait for job from host
             job = ipc.receive(timeout_ms=1000)
 
             if job is None:
-                # Update heartbeat
-                shm.update_heartbeat(config.slot_id)
-                continue
 
             logger.info(f"Received job: {job.job_id}")
 
