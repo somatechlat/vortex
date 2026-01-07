@@ -107,6 +107,12 @@ impl SpiceDbClient {
         Self { config }
     }
 
+    /// Create client from environment variables
+    pub fn from_env() -> Result<Self, crate::error::VortexError> {
+        let config = SpiceDbConfig::from_env()?;
+        Ok(Self::new(config))
+    }
+
     /// Check if subject has permission on resource
     pub async fn check_permission(
         &self,

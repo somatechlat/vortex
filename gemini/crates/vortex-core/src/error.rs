@@ -74,6 +74,16 @@ pub enum VortexError {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
+    // === Tenant Errors ===
+    
+    #[error("Tenant error: {0}")]
+    Tenant(String),
+
+    // === Authorization Errors ===
+    
+    #[error("Authorization error: {0}")]
+    Authorization(String),
+
     // === Generic Errors ===
     
     #[error("Internal error: {0}")]
@@ -95,6 +105,8 @@ impl VortexError {
             VortexError::Database(_) => "DB-001",
             VortexError::Io(_) => "IO-001",
             VortexError::Json(_) => "JSON-001",
+            VortexError::Tenant(_) => "TENANT-001",
+            VortexError::Authorization(_) => "AUTHZ-001",
             VortexError::Internal(_) => "INT-001",
         }
     }
@@ -102,5 +114,12 @@ impl VortexError {
     /// Returns true if this error should trigger worker respawn
     pub fn should_respawn_worker(&self) -> bool {
         matches!(self, VortexError::WorkerGone { .. })
+    }
+}
+
+// Error conversions for unified error handling
+impl From<crate::tenant::TenantError> for VortexError {
+    fn from(e: crate::tenant::TenantError) -> Self {
+        VortexError::Tenant(e.to_string())
     }
 }

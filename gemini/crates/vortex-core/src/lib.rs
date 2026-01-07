@@ -52,6 +52,7 @@ pub mod authz;
 pub mod tenant_repo;
 pub mod graph_repo;
 pub mod run_repo;
+pub mod server;
 
 pub use error::{VortexError, VortexResult};
 pub use graph::{GraphDSL, Node, NodeID, Link};
