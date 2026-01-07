@@ -9,6 +9,7 @@ description = "Core Engine for VORTEX-GEN 3.0 - Centaur Architecture"
 [dependencies]
 vortex-protocol = { path = "../vortex-protocol" }
 vortex-telemetry = { path = "../vortex-telemetry" }
+vortex-config = { path = "../vortex-config" }
 
 # Async Runtime
 tokio.workspace = true

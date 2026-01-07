@@ -1,52 +1,27 @@
 //! System Deployment Configuration
 //!
-//! Handles deployment modes (SANDBOX/LIVE) and hardware auto-detection.
-//! Part of the SaaS administration system.
+//! Hardware detection and system configuration.
+//! Delegates to vortex-config for centralized settings (Rule 9).
+//!
+//! This module provides:
+//! - HardwareCapabilities: Runtime hardware detection
+//! - GpuDevice: GPU information
+//! - SystemConfig: Aggregates vortex-config with hardware detection
 
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::process::Command;
 
-// ═══════════════════════════════════════════════════════════════
-//                    DEPLOYMENT MODES
-// ═══════════════════════════════════════════════════════════════
-
-/// System-wide deployment mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum DeploymentMode {
-    /// Development/Testing - CPU inference, debug logging, relaxed limits
-    Sandbox,
-    /// Production - GPU inference (if available), error logging, strict limits
-    Live,
-}
-
-impl DeploymentMode {
-    pub fn from_env() -> Self {
-        match env::var("VORTEX_DEPLOYMENT_MODE")
-            .unwrap_or_else(|_| "sandbox".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "live" | "production" | "prod" => Self::Live,
-            _ => Self::Sandbox,
-        }
-    }
-    
-    pub fn is_sandbox(&self) -> bool {
-        matches!(self, Self::Sandbox)
-    }
-    
-    pub fn is_live(&self) -> bool {
-        matches!(self, Self::Live)
-    }
-}
+// Re-export from vortex-config - single source of truth (Rule 9)
+pub use vortex_config::{
+    ComputeMode, DeploymentMode, FeatureFlags, ResourceLimits,
+};
 
 // ═══════════════════════════════════════════════════════════════
 //                    HARDWARE DETECTION
 // ═══════════════════════════════════════════════════════════════
 
-/// Detected hardware capabilities
+/// Detected hardware capabilities - unique to this module
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HardwareCapabilities {
     /// Number of CPU cores available
@@ -105,8 +80,6 @@ impl HardwareCapabilities {
     }
     
     fn detect_ram() -> u64 {
-        // Use sysinfo crate in production
-        // Fallback to env var or default
         env::var("VORTEX_AVAILABLE_RAM_GB")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
@@ -115,7 +88,6 @@ impl HardwareCapabilities {
     }
     
     fn detect_gpus() -> (Vec<GpuDevice>, bool, Option<String>) {
-        // Try nvidia-smi for NVIDIA GPUs
         let output = Command::new("nvidia-smi")
             .args(["--query-gpu=index,name,memory.total,compute_cap", "--format=csv,noheader,nounits"])
             .output();
@@ -140,7 +112,6 @@ impl HardwareCapabilities {
                     })
                     .collect();
                 
-                // Get CUDA version
                 let cuda_version = Command::new("nvidia-smi")
                     .args(["--query-gpu=driver_version", "--format=csv,noheader"])
                     .output()
@@ -157,117 +128,54 @@ impl HardwareCapabilities {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//                    COMPUTE MODE
-// ═══════════════════════════════════════════════════════════════
-
-/// Compute mode for inference
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ComputeMode {
-    Cpu,
-    Gpu,
-}
-
-impl ComputeMode {
-    pub fn from_env_or_detect(hw: &HardwareCapabilities) -> Self {
-        // Check explicit override
-        if let Ok(mode) = env::var("VORTEX_COMPUTE_MODE") {
-            match mode.to_lowercase().as_str() {
-                "gpu" | "cuda" => return Self::Gpu,
-                "cpu" => return Self::Cpu,
-                _ => {}
-            }
-        }
-        
-        // Auto-detect
-        hw.recommended_compute_mode()
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════
 //                    SYSTEM CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
 
-/// Complete system deployment configuration
+/// System config aggregating vortex-config + hardware detection
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemConfig {
-    /// Deployment mode (sandbox/live)
+    /// Deployment mode from vortex-config
     pub deployment_mode: DeploymentMode,
-    /// Detected hardware
+    /// Detected hardware (unique to this module)
     pub hardware: HardwareCapabilities,
-    /// Compute mode (cpu/gpu)
+    /// Compute mode from vortex-config
     pub compute_mode: ComputeMode,
-    /// Log level based on deployment mode
+    /// Log level
     pub log_level: String,
-    /// Feature flags
+    /// Feature flags from vortex-config
     pub features: FeatureFlags,
-    /// Resource limits
+    /// Resource limits from vortex-config
     pub limits: ResourceLimits,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FeatureFlags {
-    pub debug_panel: bool,
-    pub admin_tools: bool,
-    pub billing: bool,
-    pub usage_limits: bool,
-    pub swagger: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResourceLimits {
-    pub max_concurrent_jobs: usize,
-    pub max_vram_per_job_mb: u64,
-    pub api_rate_limit: u32,
-}
-
 impl SystemConfig {
-    /// Build system configuration from environment and hardware detection
+    /// Build system configuration from vortex-config and hardware detection
     pub fn build() -> Self {
-        let deployment_mode = DeploymentMode::from_env();
-        let hardware = HardwareCapabilities::detect();
-        let compute_mode = ComputeMode::from_env_or_detect(&hardware);
+        let config = vortex_config::VortexConfig::from_env()
+            .unwrap_or_else(|_| vortex_config::ConfigBuilder::sandbox().build().expect("default config"));
         
-        let (log_level, features, limits) = match deployment_mode {
-            DeploymentMode::Sandbox => (
-                "debug".to_string(),
-                FeatureFlags {
-                    debug_panel: true,
-                    admin_tools: true,
-                    billing: false,
-                    usage_limits: false,
-                    swagger: true,
-                },
-                ResourceLimits {
-                    max_concurrent_jobs: 2,
-                    max_vram_per_job_mb: 4096,
-                    api_rate_limit: 1000,
-                },
-            ),
-            DeploymentMode::Live => (
-                "error".to_string(),
-                FeatureFlags {
-                    debug_panel: false,
-                    admin_tools: false,
-                    billing: true,
-                    usage_limits: true,
-                    swagger: false,
-                },
-                ResourceLimits {
-                    max_concurrent_jobs: 32,
-                    max_vram_per_job_mb: 24576,
-                    api_rate_limit: 100,
-                },
-            ),
+        let hardware = HardwareCapabilities::detect();
+        let compute_mode = if hardware.has_gpu() {
+            ComputeMode::Gpu
+        } else {
+            ComputeMode::Cpu
         };
         
+        let log_level = match config.logging.level {
+            vortex_config::LogLevel::Trace => "trace",
+            vortex_config::LogLevel::Debug => "debug",
+            vortex_config::LogLevel::Info => "info",
+            vortex_config::LogLevel::Warn => "warn",
+            vortex_config::LogLevel::Error => "error",
+        }.to_string();
+        
         Self {
-            deployment_mode,
+            deployment_mode: config.mode,
             hardware,
             compute_mode,
             log_level,
-            features,
-            limits,
+            features: config.features,
+            limits: config.resources,
         }
     }
     
@@ -292,15 +200,6 @@ impl SystemConfig {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_deployment_mode_from_env() {
-        std::env::set_var("VORTEX_DEPLOYMENT_MODE", "live");
-        assert_eq!(DeploymentMode::from_env(), DeploymentMode::Live);
-        
-        std::env::set_var("VORTEX_DEPLOYMENT_MODE", "sandbox");
-        assert_eq!(DeploymentMode::from_env(), DeploymentMode::Sandbox);
-    }
-    
     #[test]
     fn test_hardware_detection() {
         let hw = HardwareCapabilities::detect();

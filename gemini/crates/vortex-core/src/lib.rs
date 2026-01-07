@@ -46,7 +46,8 @@ pub mod db;
 pub mod api;
 pub mod entities;
 pub mod config;
-pub mod settings;
+// Re-export centralized config from vortex-config crate
+pub use vortex_config::{VortexConfig, DeploymentMode, FeatureFlags, ResourceLimits, LoggingConfig};
 pub mod tenant;
 pub mod authz;
 pub mod tenant_repo;
