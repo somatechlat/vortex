@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: milvus
+  labels:
+    app: milvus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: milvus
+  template:
+    metadata:
+      labels:
+        app: milvus
+    spec:
+      containers:
+      - name: milvus
+        image: milvusdb/milvus:v2.3.4
+        args:
+          - "milvus"
+          - "run"
+          - "standalone"
+        ports:
+        - containerPort: 19530
+          name: grpc
+        - containerPort: 9091
+          name: metrics
+        env:
+        - name: ETCD_USE_EMBED
+          value: "true"
+        - name: ETCD_DATA_DIR
+          value: "/var/lib/milvus/etcd"
+        - name: COMMON_STORAGETYPE
+          value: "local"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: milvus-data
+          mountPath: /var/lib/milvus
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 9091
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 9091
+          initialDelaySeconds: 60
+          periodSeconds: 30
+      volumes:
+      - name: milvus-data
+        persistentVolumeClaim:
+          claimName: milvus-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: milvus
+  labels:
+    app: milvus
+spec:
+  type: ClusterIP
+  ports:
+  - port: 19530
+    targetPort: 19530
+    name: grpc
+  - port: 9091
+    targetPort: 9091
+    name: metrics
+  selector:
+    app: milvus
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: milvus-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

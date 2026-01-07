@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spicedb
+  namespace: vortex
+  labels:
+    app: spicedb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spicedb
+  template:
+    metadata:
+      labels:
+        app: spicedb
+    spec:
+      containers:
+      - name: spicedb
+        image: authzed/spicedb:v1.29.0
+        args:
+          - "serve"
+          - "--grpc-preshared-key=vortex-dev-key"
+          - "--http-enabled=true"
+          - "--datastore-engine=memory"
+        ports:
+        - containerPort: 50051
+          name: grpc
+        - containerPort: 8443
+          name: https
+        - containerPort: 9090
+          name: metrics
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          exec:
+            command: ["grpc_health_probe", "-addr=:50051"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command: ["grpc_health_probe", "-addr=:50051"]
+          initialDelaySeconds: 10
+          periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spicedb
+  namespace: vortex
+  labels:
+    app: spicedb
+spec:
+  type: ClusterIP
+  ports:
+  - port: 50051
+    targetPort: 50051
+    name: grpc
+  - port: 8443
+    targetPort: 8443
+    name: https
+  - port: 9090
+    targetPort: 9090
+    name: metrics
+  selector:
+    app: spicedb
+---
+# SpiceDB Schema ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spicedb-schema
+  namespace: vortex
+data:
+  schema.zed: |
+    definition user {}
+    
+    definition organization {
+      relation admin: user
+      relation member: user
+      
+      permission view = admin + member
+      permission manage = admin
+    }
+    
+    definition graph {
+      relation owner: user | organization#member
+      relation editor: user
+      relation viewer: user
+      
+      permission view = owner + editor + viewer
+      permission edit = owner + editor
+      permission execute = owner + editor
+      permission delete = owner
+    }
+    
+    definition model {
+      relation owner: user | organization#member
+      
+      permission load = owner
+      permission delete = owner
+    }

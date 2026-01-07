@@ -9,7 +9,7 @@
 # Resource limits per VIBE Rule 24
 config.define_string("namespace", args=True)
 cfg = config.parse()
-namespace = cfg.get("namespace", "vortex-dev")
+namespace = cfg.get("namespace", "vortex")
 
 # Ensure namespace exists
 k8s_yaml(blob("""
@@ -109,6 +109,58 @@ k8s_yaml('k8s/base/limitrange.yaml')
 # k8s_yaml('observability/prometheus/prometheus.yml')
 
 # ═══════════════════════════════════════════════════════════════
+#                    SECURITY (Vault + Keycloak)
+# ═══════════════════════════════════════════════════════════════
+
+k8s_yaml('k8s/base/security/vault.yaml')
+k8s_resource(
+    'vault',
+    port_forwards=['11200:8200'],  # Vault API
+    labels=['security'],
+)
+
+k8s_yaml('k8s/base/security/keycloak.yaml')
+k8s_resource(
+    'keycloak',
+    port_forwards=['11201:8080'],  # Keycloak Admin
+    labels=['security'],
+    resource_deps=['vault'],
+)
+
+k8s_yaml('k8s/base/security/spicedb.yaml')
+k8s_resource(
+    'spicedb',
+    port_forwards=[
+        '11205:50051',  # SpiceDB gRPC
+        '11206:8443',   # SpiceDB HTTP
+    ],
+    labels=['security'],
+    resource_deps=['keycloak'],
+)
+
+# ═══════════════════════════════════════════════════════════════
+#                    DATABASES (PostgreSQL + Milvus)
+# ═══════════════════════════════════════════════════════════════
+
+k8s_yaml('k8s/base/db/postgres.yaml')
+k8s_resource(
+    'postgres',
+    port_forwards=['11202:5432'],  # PostgreSQL
+    labels=['database'],
+)
+
+k8s_yaml('k8s/base/db/milvus.yaml')
+k8s_resource(
+    'milvus',
+    port_forwards=[
+        '11203:19530',  # Milvus gRPC
+        '11204:9091',   # Milvus Metrics
+    ],
+    labels=['database'],
+    resource_deps=['postgres'],
+)
+
+# ═══════════════════════════════════════════════════════════════
 #                    WORKFLOW
 # ═══════════════════════════════════════════════════════════════
 
@@ -127,4 +179,17 @@ local_resource(
     deps=['./crates'],
     labels=['test'],
     auto_init=False,
+)
+
+# Store HuggingFace token in Vault (run once after Vault is up)
+local_resource(
+    'vault-init',
+    cmd='''
+        curl -s -X POST http://localhost:11200/v1/secret/data/vortex/huggingface \
+        -H "X-Vault-Token: vortex-dev-token" \
+        -d '{"data": {"token": "'"$HF_TOKEN"'"}}'
+    ''',
+    labels=['security'],
+    auto_init=False,
+    resource_deps=['vault'],
 )

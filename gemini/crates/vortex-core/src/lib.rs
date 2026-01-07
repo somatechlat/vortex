@@ -43,6 +43,8 @@ pub mod ipc;
 pub mod shm;
 pub mod supervisor;
 pub mod db;
+pub mod api;
+pub mod entities;
 
 pub use error::{VortexError, VortexResult};
 pub use graph::{GraphDSL, Node, NodeID, Link};

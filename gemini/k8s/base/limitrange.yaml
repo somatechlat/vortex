@@ -1,19 +1,19 @@
 # VORTEX Kubernetes LimitRange
-# Default limits per pod/container
+# Production-like container/pod limits
 apiVersion: v1
 kind: LimitRange
 metadata:
   name: vortex-limits
-  namespace: vortex-dev
+  namespace: vortex
 spec:
   limits:
-    # Container defaults
+    # Container defaults (production-like)
     - type: Container
       default:
         memory: "512Mi"
         cpu: "500m"
       defaultRequest:
-        memory: "128Mi"
+        memory: "256Mi"
         cpu: "100m"
       max:
         memory: "4Gi"
@@ -25,12 +25,12 @@ spec:
     # Pod defaults
     - type: Pod
       max:
-        memory: "6Gi"
+        memory: "8Gi"
         cpu: "6"
     
-    # PVC defaults
+    # PVC defaults (real volumes)
     - type: PersistentVolumeClaim
       max:
-        storage: "10Gi"
+        storage: "20Gi"
       min:
         storage: "100Mi"
