@@ -1,0 +1,5 @@
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y libssl3 ca-certificates curl && rm -rf /var/lib/apt/lists/*
+COPY target/release/vortex-core /app/vortex-core
+WORKDIR /app
+CMD ["./vortex-core"]

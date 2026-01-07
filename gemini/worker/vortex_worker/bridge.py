@@ -58,7 +58,10 @@ def arrow_to_tensor(
         "bool": torch.bool,
     }
 
-    torch_dtype = dtype_map.get(dtype, torch.float32)
+    if dtype not in dtype_map:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+    
+    torch_dtype = dtype_map[dtype]
 
     # Create tensor from buffer (zero-copy if possible)
     tensor = torch.frombuffer(buffer, dtype=torch_dtype).reshape(shape)

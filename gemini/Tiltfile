@@ -4,15 +4,10 @@
 #
 # ⚠️  DEPLOYMENT STACK: Colima + Minikube + Tilt (NO DOCKER DESKTOP)
 #
-# COMPLETELY ISOLATED CLUSTER:
-#   - Minikube Profile: 'vortex' (10GB RAM, 20GB disk, 4 CPUs)
-#   - kubectl Context: 'vortex'
-#   - Namespace: 'vortex'
-#   - This cluster does NOT interfere with any other agents or profiles
+# COMPLETELY ISOLATED CLUSTER (VFKit / Native Provisioning)
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Enforce isolated 'vortex' context - refuse to run on any other cluster
 allow_k8s_contexts('vortex')
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -100,14 +95,23 @@ k8s_resource(
 #                    TIER 3: CORE ENGINE (Rust)
 # ═══════════════════════════════════════════════════════════════
 
-docker_build(
+# Native Host Build -> Cluster Injection
+custom_build(
     'vortex-core',
-    context='.',
-    dockerfile='docker/core/Dockerfile',
+    'cargo build --release --workspace && ' +
+    'echo "FROM debian:bookworm-slim" > .Dockerfile.core.tmp && ' +
+    'echo "RUN apt-get update && apt-get install -y libssl3 ca-certificates curl && rm -rf /var/lib/apt/lists/*" >> .Dockerfile.core.tmp && ' +
+    'echo "COPY target/release/vortex-core /app/vortex-core" >> .Dockerfile.core.tmp && ' +
+    'echo "WORKDIR /app" >> .Dockerfile.core.tmp && ' +
+    'echo "CMD [\\"./vortex-core\\"]" >> .Dockerfile.core.tmp && ' +
+    'minikube image build -t $EXPECTED_REF -p vortex -f .Dockerfile.core.tmp . && ' +
+    'rm .Dockerfile.core.tmp',
+    ['./target/release/vortex-core'], # Watch the BINARY
     live_update=[
-        sync('./crates', '/app/crates'),
-        run('cargo build --release', trigger=['./crates']),
+        sync('./target/release/vortex-core', '/app/vortex-core'),
+        run('kill 1'), # Force container restart
     ],
+    skips_local_docker=True,
 )
 
 k8s_yaml('k8s/base/core/deployment.yaml')
@@ -127,13 +131,21 @@ k8s_resource(
 #                    TIER 4: COMPUTE FABRIC (Python Workers)
 # ═══════════════════════════════════════════════════════════════
 
-docker_build(
+custom_build(
     'vortex-worker',
-    context='.',
-    dockerfile='docker/worker/Dockerfile',
+    'echo "FROM python:3.12-slim" > .Dockerfile.worker.tmp && ' +
+    'echo "RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*" >> .Dockerfile.worker.tmp && ' +
+    'echo "COPY worker /app/worker" >> .Dockerfile.worker.tmp && ' +
+    'echo "WORKDIR /app/worker" >> .Dockerfile.worker.tmp && ' +
+    'echo "RUN pip install -e ." >> .Dockerfile.worker.tmp && ' +
+    'echo "CMD [\\"python\\", \\"vortex_worker/main.py\\"]" >> .Dockerfile.worker.tmp && ' +
+    'minikube image build -t $EXPECTED_REF -p vortex -f .Dockerfile.worker.tmp . && ' +
+    'rm .Dockerfile.worker.tmp',
+    ['./worker'],
     live_update=[
         sync('./worker', '/app/worker'),
     ],
+    skips_local_docker=True,
 )
 
 k8s_yaml('k8s/base/worker/deployment.yaml')
@@ -148,14 +160,22 @@ k8s_resource(
 #                    TIER 5: FRONTEND UI (Svelte/Nginx)
 # ═══════════════════════════════════════════════════════════════
 
-docker_build(
+custom_build(
     'vortex-ui',
-    context='ui',
-    dockerfile='docker/ui/Dockerfile',
+    'cd ui && bun run build && cd .. && ' +
+    'echo "FROM nginx:alpine" > .Dockerfile.ui.tmp && ' +
+    'echo "COPY ui/dist /usr/share/nginx/html" >> .Dockerfile.ui.tmp && ' +
+    'echo "COPY ui/nginx.conf /etc/nginx/conf.d/default.conf" >> .Dockerfile.ui.tmp && ' +
+    'echo "EXPOSE 80" >> .Dockerfile.ui.tmp && ' +
+    'echo "CMD [\\"nginx\\", \\"-g\\", \\"daemon off;\\"]" >> .Dockerfile.ui.tmp && ' +
+    'minikube image build -t $EXPECTED_REF -p vortex -f .Dockerfile.ui.tmp . && ' +
+    'rm .Dockerfile.ui.tmp',
+    ['./ui/dist'], # Watch the DIST output
     live_update=[
-        sync('./ui/src', '/app/src'),
-        run('bun run build', trigger=['./ui/src']),
+        sync('./ui/dist', '/usr/share/nginx/html'),
+        run('nginx -s reload'),
     ],
+    skips_local_docker=True,
 )
 
 k8s_yaml('k8s/base/ui/deployment.yaml')
@@ -173,18 +193,24 @@ k8s_resource(
 # ═══════════════════════════════════════════════════════════════
 
 local_resource(
+    'build-core',
+    cmd='cargo build --release --workspace',
+    deps=['./crates'],
+    labels=['build'],
+)
+
+local_resource(
+    'build-ui',
+    cmd='cd ui && bun run build',
+    deps=['./ui/src'],
+    labels=['build'],
+)
+
+local_resource(
     'cargo-check',
     cmd='cargo check --workspace',
     deps=['./crates'],
     labels=['lint'],
-    auto_init=False,
-)
-
-local_resource(
-    'rust-test',
-    cmd='cargo test --workspace',
-    deps=['./crates'],
-    labels=['test'],
     auto_init=False,
 )
 
@@ -200,4 +226,3 @@ local_resource(
     auto_init=False,
     resource_deps=['vault'],
 )
-

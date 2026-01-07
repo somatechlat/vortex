@@ -21,7 +21,7 @@ spec:
       containers:
         - name: ui
           image: vortex-ui:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports:
             - name: http
               containerPort: 80

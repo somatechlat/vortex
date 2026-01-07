@@ -22,7 +22,7 @@ serde_json.workspace = true
 sha2.workspace = true
 
 # Database - Enterprise ORM
-sqlx.workspace = true
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "macros", "json", "chrono", "uuid"] }
 sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"] }
 
 # IPC - Unix Domain Sockets

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: postgres
-        image: postgres:16-alpine
+        image: public.ecr.aws/docker/library/postgres:16-alpine
         ports:
         - containerPort: 5432
           name: postgres
@@ -46,13 +46,17 @@ spec:
         readinessProbe:
           exec:
             command: ["pg_isready", "-U", "vortex"]
-          initialDelaySeconds: 5
+          initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
         livenessProbe:
           exec:
             command: ["pg_isready", "-U", "vortex"]
-          initialDelaySeconds: 30
+          initialDelaySeconds: 60
           periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
       volumes:
       - name: postgres-data
         persistentVolumeClaim:

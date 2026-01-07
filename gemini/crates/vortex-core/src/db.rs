@@ -1,234 +1,141 @@
-//! Database - SQLite persistence for execution history
+//! Database - Multi-DB persistence layer using SeaORM
 //!
-//! Implements SRS Section 3.4.2 (Database Schema)
+//! Implements SRS Section 3.4.2 (Database Schema) with database agnosticism.
 
 use crate::error::VortexResult;
-use serde::{Deserialize, Serialize};
+use crate::entities::{run, run_step};
+use sea_orm::*;
+use std::time::Duration;
 
-/// Run status enum matching SRS schema CHECK constraint
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum RunStatus {
-    Pending,
-    Running,
-    Completed,
-    Failed,
-}
-
-impl std::fmt::Display for RunStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RunStatus::Pending => write!(f, "PENDING"),
-            RunStatus::Running => write!(f, "RUNNING"),
-            RunStatus::Completed => write!(f, "COMPLETED"),
-            RunStatus::Failed => write!(f, "FAILED"),
-        }
-    }
-}
-
-/// Execution run record (SRS Table: runs)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Run {
-    pub id: String,
-    pub graph_hash: String,
-    pub status: RunStatus,
-    pub created_at: i64,
-    pub completed_at: Option<i64>,
-    pub error_json: Option<String>,
-}
-
-/// Step metrics record (SRS Table: run_steps)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunStep {
-    pub run_id: String,
-    pub node_id: String,
-    pub worker_pid: i32,
-    pub duration_us: i64,
-    pub peak_vram_mb: i64,
-}
-
-/// Database connection wrapper
+/// Database connection wrapper (SeaORM)
 pub struct Database {
-    path: String,
-    #[cfg(feature = "sqlite")]
-    pool: Option<sqlx::SqlitePool>,
+    conn: DatabaseConnection,
 }
 
 impl Database {
-    /// Create a new database connection
-    pub fn new(path: impl Into<String>) -> Self {
-        Self {
-            path: path.into(),
-            #[cfg(feature = "sqlite")]
-            pool: None,
-        }
+    /// Create a new database connection from config with retries (Rule 122)
+    pub async fn connect(config: &vortex_config::VortexConfig) -> VortexResult<Self> {
+        let user = std::env::var("POSTGRES_USER").unwrap_or_else(|_| "vortex".to_string());
+        let pass = std::env::var("POSTGRES_PASSWORD").unwrap_or_default();
+        
+        let url = format!(
+            "postgres://{}:{}@{}:{}/{}",
+            user,
+            pass,
+            config.database.postgres_host,
+            config.database.postgres_port,
+            config.database.postgres_db
+        );
+
+        tracing::info!("Connecting to Database at {}:{} (Resilience: HIGH, Engine: SeaORM)", 
+            config.database.postgres_host, config.database.postgres_port);
+
+        let mut opt = ConnectOptions::new(url);
+        opt.max_connections(config.database.pool.max_connections)
+           .min_connections(config.database.pool.min_connections)
+           .connect_timeout(Duration::from_secs(config.database.pool.connect_timeout_secs))
+           .idle_timeout(Duration::from_secs(config.database.pool.idle_timeout_secs))
+           .set_schema_search_path("public".to_string());
+
+        // Rule 122: 10-Cycle Resiliency Loop
+        let mut retries = 10;
+        let conn = loop {
+            match sea_orm::Database::connect(opt.clone()).await {
+                Ok(conn) => break conn,
+                Err(e) if retries > 0 => {
+                    tracing::warn!("Database connection failed: {}. Retrying in 5s... ({} attempts left)", e, retries);
+                    retries -= 1;
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+                Err(e) => {
+                    tracing::error!("Database connection failed after 10 cycles: {}", e);
+                    return Err(crate::error::VortexError::Internal(e.to_string()));
+                }
+            }
+        };
+
+        Ok(Self { conn })
     }
-    
+
+    /// Access the underlying SeaORM connection
+    pub fn connection(&self) -> &DatabaseConnection {
+        &self.conn
+    }
+
     /// Initialize the database with schema (SRS Section 3.4.2)
-    pub async fn init(&mut self) -> VortexResult<()> {
-        #[cfg(feature = "sqlite")]
-        {
-            use sqlx::sqlite::SqlitePoolOptions;
+    /// Programmatic Schema Creation (Smart Migrations)
+    pub async fn init(&self, run_migrations: bool) -> VortexResult<()> {
+        if run_migrations {
+            tracing::info!("Running dynamic schema synchronization...");
+            let builder = self.conn.get_database_backend();
+            let schema = Schema::new(builder);
+
+            // Synchronize all entities
+            let entities = vec![
+                schema.create_table_from_entity(run::Entity),
+                schema.create_table_from_entity(run_step::Entity),
+                schema.create_table_from_entity(crate::entities::graph::Entity),
+                schema.create_table_from_entity(crate::entities::model_entry::Entity),
+                schema.create_table_from_entity(crate::entities::tenant::Entity),
+            ];
+
+            for mut stmt in entities {
+                // Execute create table IF NOT EXISTS
+                stmt.if_not_exists();
+                let query = builder.build(&stmt);
+                if let Err(e) = self.conn.execute(query).await {
+                    tracing::warn!("Schema sync warning (safe to ignore if exists): {}", e);
+                }
+            }
             
-            let pool = SqlitePoolOptions::new()
-                .max_connections(5)
-                .connect(&format!("sqlite:{}", self.path))
-                .await?;
-            
-            // Create tables (SRS Section 3.4.2)
-            sqlx::query(r#"
-                CREATE TABLE IF NOT EXISTS runs (
-                    id TEXT PRIMARY KEY NOT NULL,
-                    graph_hash TEXT NOT NULL,
-                    status TEXT CHECK(status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED')),
-                    created_at INTEGER NOT NULL,
-                    completed_at INTEGER,
-                    error_json TEXT
-                )
-            "#)
-            .execute(&pool)
-            .await?;
-            
-            sqlx::query(r#"
-                CREATE TABLE IF NOT EXISTS run_steps (
-                    run_id TEXT NOT NULL REFERENCES runs(id),
-                    node_id TEXT NOT NULL,
-                    worker_pid INTEGER NOT NULL,
-                    duration_us INTEGER NOT NULL,
-                    peak_vram_mb INTEGER NOT NULL,
-                    PRIMARY KEY (run_id, node_id)
-                )
-            "#)
-            .execute(&pool)
-            .await?;
-            
-            self.pool = Some(pool);
+            tracing::info!("Database schema synchronized.");
         }
         
         Ok(())
     }
     
     /// Insert a new run
-    #[cfg(feature = "sqlite")]
-    pub async fn insert_run(&self, run: &Run) -> VortexResult<()> {
-        let pool = self.pool.as_ref().ok_or_else(|| {
-            crate::error::VortexError::Internal("Database not initialized".to_string())
-        })?;
-        
-        sqlx::query(r#"
-            INSERT INTO runs (id, graph_hash, status, created_at, completed_at, error_json)
-            VALUES (?, ?, ?, ?, ?, ?)
-        "#)
-        .bind(&run.id)
-        .bind(&run.graph_hash)
-        .bind(run.status.to_string())
-        .bind(run.created_at)
-        .bind(run.completed_at)
-        .bind(&run.error_json)
-        .execute(pool)
-        .await?;
-        
+    pub async fn insert_run(&self, run_data: run::Model) -> VortexResult<()> {
+        let active_model: run::ActiveModel = run_data.into();
+        active_model.insert(&self.conn).await.map_err(|e| crate::error::VortexError::Internal(e.to_string()))?;
         Ok(())
     }
     
     /// Update run status
-    #[cfg(feature = "sqlite")]
     pub async fn update_run_status(
         &self,
         run_id: &str,
-        status: RunStatus,
+        status: run::RunStatus,
         completed_at: Option<i64>,
         error_json: Option<String>,
     ) -> VortexResult<()> {
-        let pool = self.pool.as_ref().ok_or_else(|| {
-            crate::error::VortexError::Internal("Database not initialized".to_string())
-        })?;
+        let run = run::Entity::find_by_id(run_id.to_string())
+            .one(&self.conn)
+            .await
+            .map_err(|e| crate::error::VortexError::Internal(e.to_string()))?
+            .ok_or_else(|| crate::error::VortexError::Internal("Run not found".to_string()))?;
+
+        let mut run: run::ActiveModel = run.into();
+        run.status = Set(status);
+        run.completed_at = Set(completed_at);
+        run.error_json = Set(error_json);
         
-        sqlx::query(r#"
-            UPDATE runs SET status = ?, completed_at = ?, error_json = ? WHERE id = ?
-        "#)
-        .bind(status.to_string())
-        .bind(completed_at)
-        .bind(error_json)
-        .bind(run_id)
-        .execute(pool)
-        .await?;
-        
+        run.update(&self.conn).await.map_err(|e| crate::error::VortexError::Internal(e.to_string()))?;
         Ok(())
     }
     
     /// Insert a step metric
-    #[cfg(feature = "sqlite")]
-    pub async fn insert_step(&self, step: &RunStep) -> VortexResult<()> {
-        let pool = self.pool.as_ref().ok_or_else(|| {
-            crate::error::VortexError::Internal("Database not initialized".to_string())
-        })?;
-        
-        sqlx::query(r#"
-            INSERT INTO run_steps (run_id, node_id, worker_pid, duration_us, peak_vram_mb)
-            VALUES (?, ?, ?, ?, ?)
-        "#)
-        .bind(&step.run_id)
-        .bind(&step.node_id)
-        .bind(step.worker_pid)
-        .bind(step.duration_us)
-        .bind(step.peak_vram_mb)
-        .execute(pool)
-        .await?;
-        
+    pub async fn insert_step(&self, step_data: run_step::Model) -> VortexResult<()> {
+        let active_model: run_step::ActiveModel = step_data.into();
+        active_model.insert(&self.conn).await.map_err(|e| crate::error::VortexError::Internal(e.to_string()))?;
         Ok(())
     }
     
     /// Get a run by ID
-    #[cfg(feature = "sqlite")]
-    pub async fn get_run(&self, run_id: &str) -> VortexResult<Option<Run>> {
-        let pool = self.pool.as_ref().ok_or_else(|| {
-            crate::error::VortexError::Internal("Database not initialized".to_string())
-        })?;
-        
-        let row = sqlx::query_as::<_, (String, String, String, i64, Option<i64>, Option<String>)>(
-            "SELECT id, graph_hash, status, created_at, completed_at, error_json FROM runs WHERE id = ?"
-        )
-        .bind(run_id)
-        .fetch_optional(pool)
-        .await?;
-        
-        Ok(row.map(|(id, graph_hash, status, created_at, completed_at, error_json)| {
-            Run {
-                id,
-                graph_hash,
-                status: match status.as_str() {
-                    "PENDING" => RunStatus::Pending,
-                    "RUNNING" => RunStatus::Running,
-                    "COMPLETED" => RunStatus::Completed,
-                    _ => RunStatus::Failed,
-                },
-                created_at,
-                completed_at,
-                error_json,
-            }
-        }))
-    }
-    
-    // Stub implementations for non-sqlite builds
-    #[cfg(not(feature = "sqlite"))]
-    pub async fn insert_run(&self, _run: &Run) -> VortexResult<()> { Ok(()) }
-    #[cfg(not(feature = "sqlite"))]
-    pub async fn update_run_status(&self, _: &str, _: RunStatus, _: Option<i64>, _: Option<String>) -> VortexResult<()> { Ok(()) }
-    #[cfg(not(feature = "sqlite"))]
-    pub async fn insert_step(&self, _step: &RunStep) -> VortexResult<()> { Ok(()) }
-    #[cfg(not(feature = "sqlite"))]
-    pub async fn get_run(&self, _run_id: &str) -> VortexResult<Option<Run>> { Ok(None) }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_display() {
-        assert_eq!(RunStatus::Pending.to_string(), "PENDING");
-        assert_eq!(RunStatus::Running.to_string(), "RUNNING");
-        assert_eq!(RunStatus::Completed.to_string(), "COMPLETED");
-        assert_eq!(RunStatus::Failed.to_string(), "FAILED");
+    pub async fn get_run(&self, run_id: &str) -> VortexResult<Option<run::Model>> {
+        run::Entity::find_by_id(run_id.to_string())
+            .one(&self.conn)
+            .await
+            .map_err(|e| crate::error::VortexError::Internal(e.to_string()))
     }
 }

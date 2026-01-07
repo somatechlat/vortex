@@ -36,10 +36,10 @@ spec:
           value: "local"
         resources:
           requests:
-            memory: "512Mi"
+            memory: "256Mi"
             cpu: "100m"
           limits:
-            memory: "1Gi"
+            memory: "512Mi"
             cpu: "1000m"
         volumeMounts:
         - name: milvus-data
@@ -48,14 +48,18 @@ spec:
           httpGet:
             path: /healthz
             port: 9091
-          initialDelaySeconds: 30
+          initialDelaySeconds: 60
           periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 5
         livenessProbe:
           httpGet:
             path: /healthz
             port: 9091
-          initialDelaySeconds: 60
+          initialDelaySeconds: 120
           periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
       volumes:
       - name: milvus-data
         persistentVolumeClaim:

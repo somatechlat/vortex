@@ -1,69 +1,35 @@
 [workspace]
-resolver = "2"
 members = [
     "crates/vortex-core",
-    "crates/vortex-protocol",
-    "crates/vortex-registry",
-    "crates/vortex-telemetry",
     "crates/vortex-config",
+    "crates/vortex-registry",
 ]
+resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
 edition = "2021"
-authors = ["SOMATECH <dev@somatech.lat>"]
-license = "Apache-2.0"
-repository = "https://github.com/somatechlat/vortex"
-
+version = "0.1.0"
+authors = ["SomaTech <engineering@somatech.lat>"]
+license = "MIT"
+description = "VORTEX High-Performance AI Workflow Engine"
 [workspace.dependencies]
-# Async Runtime
-tokio = { version = "1.35", features = ["full", "signal"] }
-
-# Serialization
+tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-prost = "0.12"
-prost-types = "0.12"
-
-# Hashing
 sha2 = "0.10"
-
-# Database
-sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite"] }
-
-# IPC
-nix = { version = "0.27", features = ["socket", "mman", "signal", "process", "fs"] }
-
-# Shared Memory  
+nix = { version = "0.27", features = ["fs", "socket", "mman"] }
 memmap2 = "0.9"
-
-# Concurrency
 dashmap = "5.5"
 parking_lot = "0.12"
-
-# Logging & Telemetry
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
-opentelemetry = "0.21"
-opentelemetry-otlp = "0.14"
-
-# HTTP Server
 axum = { version = "0.7", features = ["ws"] }
 tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
-
-# Error Handling
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 thiserror = "1.0"
 anyhow = "1.0"
-
-# UUID
 uuid = { version = "1.6", features = ["v4", "serde"] }
-
-[profile.release]
-lto = true
-codegen-units = 1
-panic = "abort"
-
-[profile.dev]
-opt-level = 0
-debug = true
+prost = "0.12"
+prost-types = "0.12"
+opentelemetry = "0.21"
+opentelemetry-otlp = "0.14"

@@ -19,6 +19,8 @@ data:
   POSTGRES_HOST: "postgres"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "vortex"
+  POSTGRES_USER: "vortex"
+  POSTGRES_PASSWORD: "vortex_password" # In production, these should be from Vault
   
   # Compute defaults
   VORTEX_COMPUTE_MODE: "cpu"

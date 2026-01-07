@@ -103,8 +103,8 @@ pub mod graph {
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
         pub id: String,
+        pub tenant_id: String,
         pub name: String,
-        pub owner_id: String,
         pub version: i32,
         pub graph_json: String,
         pub created_at: i64,
@@ -112,7 +112,89 @@ pub mod graph {
     }
 
     #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-    pub enum Relation {}
+    pub enum Relation {
+        #[sea_orm(
+            belongs_to = "super::tenant::Entity",
+            from = "Column::TenantId",
+            to = "super::tenant::Column::Id"
+        )]
+        Tenant,
+    }
+
+    impl Related<super::tenant::Entity> for Entity {
+        fn to() -> RelationDef {
+            Relation::Tenant.def()
+        }
+    }
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//                    TENANT ENTITY
+// ═══════════════════════════════════════════════════════════════
+
+pub mod tenant {
+    use sea_orm::entity::prelude::*;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+    #[sea_orm(rs_type = "String", db_type = "String(Some(16))")]
+    pub enum TenantTier {
+        #[sea_orm(string_value = "free")]
+        Free,
+        #[sea_orm(string_value = "pro")]
+        Pro,
+        #[sea_orm(string_value = "enterprise")]
+        Enterprise,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+    #[sea_orm(rs_type = "String", db_type = "String(Some(16))")]
+    pub enum TenantStatus {
+        #[sea_orm(string_value = "provisioning")]
+        Provisioning,
+        #[sea_orm(string_value = "active")]
+        Active,
+        #[sea_orm(string_value = "suspended")]
+        Suspended,
+        #[sea_orm(string_value = "pending_deletion")]
+        PendingDeletion,
+        #[sea_orm(string_value = "deleted")]
+        Deleted,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+    #[sea_orm(table_name = "tenants")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub id: String,
+        pub name: String,
+        #[sea_orm(unique)]
+        pub slug: String,
+        pub tier: TenantTier,
+        pub status: TenantStatus,
+        pub max_concurrent_jobs: i32,
+        pub max_gpu_hours_month: i64,
+        pub max_graphs: i32,
+        pub max_models: i32,
+        pub max_members: i32,
+        pub max_storage_bytes: i64,
+        pub created_at: i64,
+        pub updated_at: i64,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {
+        #[sea_orm(has_many = "super::graph::Entity")]
+        Graphs,
+    }
+
+    impl Related<super::graph::Entity> for Entity {
+        fn to() -> RelationDef {
+            Relation::Graphs.def()
+        }
+    }
 
     impl ActiveModelBehavior for ActiveModel {}
 }

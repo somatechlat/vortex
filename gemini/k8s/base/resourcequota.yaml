@@ -17,13 +17,13 @@ metadata:
   namespace: vortex
 spec:
   hard:
-    # Memory: STRICT 10GB total cluster limit
-    requests.memory: "6Gi"
+    # Memory: Fit within 10GB VM (~8Gi allocatable)
+    requests.memory: "4Gi"
     limits.memory: "8Gi"
     
-    # CPU: 4 cores max requests
+    # CPU: 4 cores max requests, 8 cores limits
     requests.cpu: "2"
-    limits.cpu: "4"
+    limits.cpu: "8"
     
     # Storage: 10GB max
     requests.storage: "10Gi"
