@@ -89,6 +89,8 @@ def main() -> NoReturn:
             job = ipc.receive(timeout_ms=1000)
 
             if job is None:
+                # No job, continue heartbeat polling
+                continue
 
             logger.info(f"Received job: {job.job_id}")
 
