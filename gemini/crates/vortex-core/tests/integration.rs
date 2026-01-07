@@ -22,6 +22,7 @@ async fn get_pool() -> sqlx::PgPool {
 }
 
 #[tokio::test]
+#[ignore]  // Requires: DATABASE_URL + port-forward to real PostgreSQL
 async fn test_tenant_repo_crud() {
     let pool = get_pool().await;
     let repo = PgTenantRepository::new(pool);
@@ -57,6 +58,7 @@ async fn test_tenant_repo_crud() {
 }
 
 #[tokio::test]
+#[ignore]  // Requires: DATABASE_URL + port-forward to real PostgreSQL
 async fn test_graph_repo_crud() {
     let pool = get_pool().await;
     let repo = PgGraphRepository::new(pool);
@@ -97,6 +99,7 @@ async fn test_graph_repo_crud() {
 }
 
 #[tokio::test]
+#[ignore]  // Requires: DATABASE_URL + port-forward to real PostgreSQL
 async fn test_run_repo_crud() {
     let pool = get_pool().await;
     let repo = PgRunRepository::new(pool);
