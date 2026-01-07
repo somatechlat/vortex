@@ -8,6 +8,7 @@ from dataclasses import dataclass
 @dataclass
 class Job:
     """Job received from the Rust host."""
+
     job_id: str
     node_type: str
     params: dict
@@ -17,6 +18,7 @@ class Job:
 @dataclass
 class JobResult:
     """Result to send back to the Rust host."""
+
     job_id: str
     output_tensors: list
     success: bool
@@ -56,6 +58,7 @@ class IPCSocket:
             raise RuntimeError("Socket not connected")
 
         import select
+
         timeout_sec = timeout_ms / 1000.0
 
         ready, _, _ = select.select([self.sock], [], [], timeout_sec)

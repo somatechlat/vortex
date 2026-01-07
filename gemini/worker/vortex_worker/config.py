@@ -13,7 +13,7 @@ def parse_slot_id(value: str) -> int:
     if value.isdigit():
         return int(value)
     # Extract numeric suffix from pod name
-    match = re.search(r'(\d+)$', value)
+    match = re.search(r"(\d+)$", value)
     if match:
         return int(match.group(1)) % 256  # Keep in byte range
     # Hash-based fallback for non-numeric pod names

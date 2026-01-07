@@ -2,8 +2,6 @@
   VORTEX Signal Bus Component
   Vertical multi-lane data highway
   Per SDD §3.2.3 and SCR-MAIN specification
-  
-  @author The Architect (10-Persona Collective)
 -->
 <script lang="ts">
   import { busStore, type DataType } from '$lib/stores/bus.svelte';

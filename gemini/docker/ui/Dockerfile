@@ -1,5 +1,26 @@
-# VORTEX UI Dockerfile
-# Svelte 5 + Bun + Nginx
+# ═══════════════════════════════════════════════════════════════════════════════
+# VORTEX UI Dockerfile - Svelte 5 + Bun + Nginx
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# ⚠️  DEPLOYMENT STACK: Colima + Minikube + Tilt (NO DOCKER DESKTOP)
+#
+# This image is designed to be deployed via:
+#   1. Colima - Docker runtime (NOT Docker Desktop)
+#   2. Minikube - Local Kubernetes cluster (docker driver)
+#   3. Tilt - Development workflow orchestration
+#
+# DO NOT USE DOCKER DESKTOP OR DOCKER COMPOSE DIRECTLY.
+# Always run: `tilt up` from the repository root.
+#
+# Build via Tilt (automatic):
+#   $ cd /path/to/vortex && tilt up
+#
+# Manual build (for debugging only):
+#   $ eval $(minikube docker-env)
+#   $ docker build -t vortex-ui:latest -f docker/ui/Dockerfile ui/
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
 FROM oven/bun:1 AS builder
 
 WORKDIR /app

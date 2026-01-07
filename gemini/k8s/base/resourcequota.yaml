@@ -1,6 +1,15 @@
+# ═══════════════════════════════════════════════════════════════════════════════
 # VORTEX Kubernetes Resource Quota
-# Production-like development limits
-# Total cluster limit: 10GB per VIBE Rule 24
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# ⚠️  DEPLOYMENT STACK: Colima + Minikube + Tilt (NO DOCKER DESKTOP)
+#
+# FIXED LIMITS - DO NOT EXCEED:
+#   - Memory: 10GB total for vortex namespace (8GB requests, 10GB limits)
+#   - CPU: 4 cores (requests), 8 cores (limits)
+#   - Disk: 10GB storage
+#
+# ═══════════════════════════════════════════════════════════════════════════════
 apiVersion: v1
 kind: ResourceQuota
 metadata:
@@ -8,20 +17,21 @@ metadata:
   namespace: vortex
 spec:
   hard:
-    # Memory: 10GB total cluster limit
-    requests.memory: "8Gi"
-    limits.memory: "15Gi"
+    # Memory: STRICT 10GB total cluster limit
+    requests.memory: "6Gi"
+    limits.memory: "8Gi"
     
-    # CPU: 8 cores max
-    requests.cpu: "4"
-    limits.cpu: "8"
+    # CPU: 4 cores max requests
+    requests.cpu: "2"
+    limits.cpu: "4"
     
-    # Storage: Real volumes
-    requests.storage: "15Gi"
-    persistentvolumeclaims: "20"
+    # Storage: 10GB max
+    requests.storage: "10Gi"
+    persistentvolumeclaims: "10"
     
-    # Pod limits (production-like)
-    pods: "20"
+    # Pod limits
+    pods: "15"
     services: "10"
-    configmaps: "30"
+    configmaps: "20"
     secrets: "20"
+

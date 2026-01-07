@@ -53,7 +53,7 @@ def main() -> NoReturn:
         try:
             shm = ShmArena(config.shm_name, size=SHM_SIZE)
             logger.info(f"Created SHM arena: {config.shm_name} ({SHM_SIZE} bytes)")
-        except Exception as create_err:
+        except Exception:
             # Try to open existing if create fails
             shm = ShmArena(config.shm_name)
             logger.info(f"Connected to existing SHM arena: {config.shm_name}")
@@ -70,10 +70,14 @@ def main() -> NoReturn:
             logger.info(f"Connected to IPC socket: {config.ipc_path}")
         except FileNotFoundError:
             ipc = None  # Ensure ipc is None for standalone mode
-            logger.warning(f"IPC socket not found: {config.ipc_path} - running in standalone mode")
+            logger.warning(
+                f"IPC socket not found: {config.ipc_path} - running in standalone mode"
+            )
         except Exception as ipc_err:
             ipc = None  # Ensure ipc is None for standalone mode
-            logger.warning(f"IPC connection failed: {ipc_err} - running in standalone mode")
+            logger.warning(
+                f"IPC connection failed: {ipc_err} - running in standalone mode"
+            )
 
         # Main event loop
         logger.info("Entering main event loop")
@@ -84,6 +88,7 @@ def main() -> NoReturn:
             # If no IPC, just keep heartbeat alive
             if ipc is None:
                 import time
+
                 time.sleep(1)
                 continue
 

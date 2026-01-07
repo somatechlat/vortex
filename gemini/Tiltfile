@@ -1,12 +1,24 @@
+# ═══════════════════════════════════════════════════════════════════════════════
 # VORTEX Tiltfile
-# Local Kubernetes development with hot reload
-# Cluster: Colima with 10GB RAM limit
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# ⚠️  DEPLOYMENT STACK: Colima + Minikube + Tilt (NO DOCKER DESKTOP)
+#
+# COMPLETELY ISOLATED CLUSTER:
+#   - Minikube Profile: 'vortex' (10GB RAM, 20GB disk, 4 CPUs)
+#   - kubectl Context: 'vortex'
+#   - Namespace: 'vortex'
+#   - This cluster does NOT interfere with any other agents or profiles
+#
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════════════════════════════
+# Enforce isolated 'vortex' context - refuse to run on any other cluster
+allow_k8s_contexts('vortex')
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #                    CONFIGURATION
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Resource limits per VIBE Rule 24
 config.define_string("namespace", args=True)
 cfg = config.parse()
 namespace = cfg.get("namespace", "vortex")
@@ -23,7 +35,69 @@ metadata:
 """ % namespace))
 
 # ═══════════════════════════════════════════════════════════════
-#                    CORE ENGINE (Rust)
+#                    RESOURCE QUOTAS (Apply First)
+# ═══════════════════════════════════════════════════════════════
+
+k8s_yaml('k8s/base/resourcequota.yaml')
+k8s_yaml('k8s/base/limitrange.yaml')
+
+# ═══════════════════════════════════════════════════════════════
+#                    TIER 0: ROOT SERVICES (No Dependencies)
+# ═══════════════════════════════════════════════════════════════
+
+# PostgreSQL - Root of dependency tree
+k8s_yaml('k8s/base/db/postgres.yaml')
+k8s_resource(
+    'postgres',
+    port_forwards=['11202:5432'],
+    labels=['tier-0-root'],
+)
+
+# Vault - Secrets management (no deps)
+k8s_yaml('k8s/base/security/vault.yaml')
+k8s_resource(
+    'vault',
+    port_forwards=['11200:8200'],
+    labels=['tier-0-root'],
+)
+
+# ═══════════════════════════════════════════════════════════════
+#                    TIER 1: DB-DEPENDENT SERVICES
+# ═══════════════════════════════════════════════════════════════
+
+# Keycloak - Depends on Postgres for auth DB
+k8s_yaml('k8s/base/security/keycloak.yaml')
+k8s_resource(
+    'keycloak',
+    port_forwards=['11201:8080'],
+    labels=['tier-1-auth'],
+    resource_deps=['postgres', 'vault'],
+)
+
+# Milvus - Vector DB (depends on Postgres for metadata)
+k8s_yaml('k8s/base/db/milvus.yaml')
+k8s_resource(
+    'milvus',
+    port_forwards=['11203:19530', '11204:9091'],
+    labels=['tier-1-db'],
+    resource_deps=['postgres'],
+)
+
+# ═══════════════════════════════════════════════════════════════
+#                    TIER 2: SECURITY/AUTHZ SERVICES
+# ═══════════════════════════════════════════════════════════════
+
+# SpiceDB - ReBAC (depends on Postgres for tuples)
+k8s_yaml('k8s/base/security/spicedb.yaml')
+k8s_resource(
+    'spicedb',
+    port_forwards=['11205:50051', '11206:8443'],
+    labels=['tier-2-security'],
+    resource_deps=['postgres', 'keycloak'],
+)
+
+# ═══════════════════════════════════════════════════════════════
+#                    TIER 3: CORE ENGINE (Rust)
 # ═══════════════════════════════════════════════════════════════
 
 docker_build(
@@ -38,22 +112,19 @@ docker_build(
 
 k8s_yaml('k8s/base/core/deployment.yaml')
 k8s_yaml('k8s/base/core/service.yaml')
-k8s_yaml('k8s/base/core/pvc.yaml')
 k8s_yaml('k8s/base/core/configmap.yaml')
+k8s_yaml('k8s/base/storage/data-pvc.yaml')
+k8s_yaml('k8s/base/storage/models-pvc.yaml')
 
 k8s_resource(
     'vortex-core',
-    port_forwards=[
-        '11188:11188',  # HTTP API
-        '11189:11189',  # WebSocket
-        '11191:11191',  # Metrics
-    ],
-    labels=['backend'],
-    resource_deps=['vortex-worker'],
+    port_forwards=['11188:11188', '11189:11189', '11191:11191'],
+    labels=['tier-3-backend'],
+    resource_deps=['postgres', 'spicedb', 'milvus', 'vault'],
 )
 
 # ═══════════════════════════════════════════════════════════════
-#                    COMPUTE FABRIC (Python)
+#                    TIER 4: COMPUTE FABRIC (Python Workers)
 # ═══════════════════════════════════════════════════════════════
 
 docker_build(
@@ -69,11 +140,12 @@ k8s_yaml('k8s/base/worker/deployment.yaml')
 
 k8s_resource(
     'vortex-worker',
-    labels=['worker'],
+    labels=['tier-4-compute'],
+    resource_deps=['vortex-core'],
 )
 
 # ═══════════════════════════════════════════════════════════════
-#                    FRONTEND UI (Svelte)
+#                    TIER 5: FRONTEND UI (Svelte/Nginx)
 # ═══════════════════════════════════════════════════════════════
 
 docker_build(
@@ -91,81 +163,15 @@ k8s_yaml('k8s/base/ui/service.yaml')
 
 k8s_resource(
     'vortex-ui',
-    port_forwards=['11100:80'],  # UI port
-    labels=['frontend'],
+    port_forwards=['11100:80'],
+    labels=['tier-5-frontend'],
+    resource_deps=['vortex-core'],
 )
 
 # ═══════════════════════════════════════════════════════════════
-#                    RESOURCE QUOTAS
+#                    LOCAL DEV RESOURCES
 # ═══════════════════════════════════════════════════════════════
 
-k8s_yaml('k8s/base/resourcequota.yaml')
-k8s_yaml('k8s/base/limitrange.yaml')
-
-# ═══════════════════════════════════════════════════════════════
-#                    OBSERVABILITY
-# ═══════════════════════════════════════════════════════════════
-
-# Prometheus (optional)
-# k8s_yaml('observability/prometheus/prometheus.yml')
-
-# ═══════════════════════════════════════════════════════════════
-#                    SECURITY (Vault + Keycloak)
-# ═══════════════════════════════════════════════════════════════
-
-k8s_yaml('k8s/base/security/vault.yaml')
-k8s_resource(
-    'vault',
-    port_forwards=['11200:8200'],  # Vault API
-    labels=['security'],
-)
-
-k8s_yaml('k8s/base/security/keycloak.yaml')
-k8s_resource(
-    'keycloak',
-    port_forwards=['11201:8080'],  # Keycloak Admin
-    labels=['security'],
-    resource_deps=['vault'],
-)
-
-k8s_yaml('k8s/base/security/spicedb.yaml')
-k8s_resource(
-    'spicedb',
-    port_forwards=[
-        '11205:50051',  # SpiceDB gRPC
-        '11206:8443',   # SpiceDB HTTP
-    ],
-    labels=['security'],
-    resource_deps=['keycloak'],
-)
-
-# ═══════════════════════════════════════════════════════════════
-#                    DATABASES (PostgreSQL + Milvus)
-# ═══════════════════════════════════════════════════════════════
-
-k8s_yaml('k8s/base/db/postgres.yaml')
-k8s_resource(
-    'postgres',
-    port_forwards=['11202:5432'],  # PostgreSQL
-    labels=['database'],
-)
-
-k8s_yaml('k8s/base/db/milvus.yaml')
-k8s_resource(
-    'milvus',
-    port_forwards=[
-        '11203:19530',  # Milvus gRPC
-        '11204:9091',   # Milvus Metrics
-    ],
-    labels=['database'],
-    resource_deps=['postgres'],
-)
-
-# ═══════════════════════════════════════════════════════════════
-#                    WORKFLOW
-# ═══════════════════════════════════════════════════════════════
-
-# Local development workflow
 local_resource(
     'cargo-check',
     cmd='cargo check --workspace',
@@ -194,3 +200,4 @@ local_resource(
     auto_init=False,
     resource_deps=['vault'],
 )
+

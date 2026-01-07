@@ -2,8 +2,6 @@
   VORTEX Blade Component
   Glassmorphic container for a processing unit
   Per SDD §3.2.2 Blade Component specification
-  
-  @author The Diplomat (10-Persona Collective)
 -->
 <script lang="ts">
   import type { RackUnit } from '$lib/stores/rack.svelte';

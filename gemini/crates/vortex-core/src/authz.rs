@@ -27,10 +27,11 @@ impl ObjectRef {
             object_id: object_id.to_string(),
         }
     }
+}
 
-    /// Format: type:id
-    pub fn to_string(&self) -> String {
-        format!("{}:{}", self.object_type, self.object_id)
+impl std::fmt::Display for ObjectRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.object_type, self.object_id)
     }
 }
 

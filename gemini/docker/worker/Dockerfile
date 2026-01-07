@@ -1,4 +1,26 @@
+# ═══════════════════════════════════════════════════════════════════════════════
 # VORTEX Python Worker Dockerfile - Production Grade
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# ⚠️  DEPLOYMENT STACK: Colima + Minikube + Tilt (NO DOCKER DESKTOP)
+#
+# This image is designed to be deployed via:
+#   1. Colima - Docker runtime (NOT Docker Desktop)
+#   2. Minikube - Local Kubernetes cluster (docker driver)
+#   3. Tilt - Development workflow orchestration
+#
+# DO NOT USE DOCKER DESKTOP OR DOCKER COMPOSE DIRECTLY.
+# Always run: `tilt up` from the repository root.
+#
+# Build via Tilt (automatic):
+#   $ cd /path/to/vortex && tilt up
+#
+# Manual build (for debugging only):
+#   $ eval $(minikube docker-env)
+#   $ docker build -t vortex-worker:latest -f docker/worker/Dockerfile .
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
 # Build ARG controls which requirements to use (sandbox/live)
 FROM python:3.11-slim-bookworm AS base
 

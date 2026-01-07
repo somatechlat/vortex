@@ -2,8 +2,6 @@
   VORTEX Rack Component
   Vertical stack of processing unit Blades
   Per SDD §3.2.1 Rack Component specification
-  
-  @author The Craftsman (10-Persona Collective)
 -->
 <script lang="ts">
   import { flip } from 'svelte/animate';

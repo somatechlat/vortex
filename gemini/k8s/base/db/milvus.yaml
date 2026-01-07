@@ -36,10 +36,10 @@ spec:
           value: "local"
         resources:
           requests:
-            memory: "1Gi"
+            memory: "512Mi"
             cpu: "100m"
           limits:
-            memory: "2Gi"
+            memory: "1Gi"
             cpu: "1000m"
         volumeMounts:
         - name: milvus-data
@@ -90,4 +90,4 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
+      storage: 1Gi

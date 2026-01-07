@@ -13,6 +13,7 @@ import time
 # Must match Rust structs exactly!
 # ═══════════════════════════════════════════════════════════════
 
+
 class WorkerSlot(ctypes.Structure):
     """Worker slot in shared memory (64 bytes).
 
@@ -29,14 +30,16 @@ class WorkerSlot(ctypes.Structure):
     }
     ```
     """
+
     _fields_ = [
-        ("pid", ctypes.c_int32),           # Process ID
-        ("status", ctypes.c_uint32),        # WorkerStatus enum
-        ("last_heartbeat", ctypes.c_uint64), # Unix timestamp ms
-        ("current_job", ctypes.c_uint64),   # Current job ID
-        ("progress", ctypes.c_float),       # 0.0 - 1.0
+        ("pid", ctypes.c_int32),  # Process ID
+        ("status", ctypes.c_uint32),  # WorkerStatus enum
+        ("last_heartbeat", ctypes.c_uint64),  # Unix timestamp ms
+        ("current_job", ctypes.c_uint64),  # Current job ID
+        ("progress", ctypes.c_float),  # 0.0 - 1.0
         ("reserved", ctypes.c_uint8 * 36),  # Padding to 64 bytes
     ]
+
 
 assert ctypes.sizeof(WorkerSlot) == 64, "WorkerSlot must be 64 bytes"
 
@@ -49,6 +52,7 @@ class ShmHeader(ctypes.Structure):
     - Worker slots: 256 * 64 = 16320 bytes
     - Tensor arena starts at offset 16384
     """
+
     MAX_WORKERS = 256
     MAGIC = 0x5654_5833_0000_0001  # "VTX3" + version
 
@@ -67,6 +71,7 @@ class ShmHeader(ctypes.Structure):
 # ═══════════════════════════════════════════════════════════════
 #                    SHM ARENA CLASS
 # ═══════════════════════════════════════════════════════════════
+
 
 class ShmArena:
     """Python interface to the VORTEX shared memory arena."""
