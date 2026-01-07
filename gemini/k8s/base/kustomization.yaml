@@ -8,6 +8,7 @@ resources:
   - namespace.yaml
   - resourcequota.yaml
   - limitrange.yaml
+  - configmap.yaml
   # Core services
   - core/deployment.yaml
   - core/service.yaml

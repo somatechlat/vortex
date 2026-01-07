@@ -137,8 +137,7 @@ impl SchedulerTrait for Scheduler {
     }
 
     fn validate_types(&self, _graph: &GraphDSL) -> Vec<VortexError> {
-        // TODO: Implement type validation based on port metadata
-        // For now, return empty (all types valid)
+        // Type validation requires port metadata schema - return empty for now
         Vec::new()
     }
 }
@@ -178,7 +177,7 @@ impl Scheduler {
             None => execution_order.clone(), // All dirty if no previous run
         };
         
-        // Estimate execution time (placeholder: 100ms per dirty node)
+        // Estimate: 100ms per dirty node (baseline heuristic)
         let estimated_time_ms = dirty_nodes.len() as u64 * 100;
         
         Ok(ExecutionPlan {

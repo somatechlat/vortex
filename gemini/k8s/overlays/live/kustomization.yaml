@@ -1,0 +1,85 @@
+# LIVE Environment Overlay
+# Production with GPU inference
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: vortex-prod
+
+resources:
+  - ../../base
+
+# LIVE ConfigMap
+configMapGenerator:
+  - name: vortex-env
+    behavior: replace
+    literals:
+      # Environment
+      - VORTEX_MODE=live
+      - VORTEX_NAMESPACE=vortex-prod
+      - VORTEX_REGION=us-east-1
+      
+      # Service Endpoints (non-secret)
+      - VAULT_ADDR=https://vault.vortex.io:8200
+      - KEYCLOAK_ISSUER=https://auth.vortex.io/realms/vortex
+      - SPICEDB_ENDPOINT=spicedb.vortex.io:50051
+      - POSTGRES_HOST=postgres.vortex.io
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=vortex
+      - MILVUS_ENDPOINT=milvus.vortex.io:19530
+      
+      # Compute Mode
+      - VORTEX_COMPUTE_MODE=gpu
+      - PYTORCH_DEVICE=cuda
+      - GPU_MEMORY_FRACTION=0.9
+      
+      # Logging
+      - LOG_LEVEL=error
+      - LOG_FORMAT=json
+      - TRACE_SAMPLING=0.01
+      
+      # Features
+      - FEATURE_DEBUG_PANEL=false
+      - FEATURE_ADMIN_TOOLS=false
+      - FEATURE_BILLING=true
+      - FEATURE_USAGE_LIMITS=true
+      - FEATURE_SWAGGER=false
+      
+      # Resource Limits
+      - MAX_CONCURRENT_JOBS=32
+      - MAX_VRAM_MB=24576
+      - API_RATE_LIMIT=100
+      - MAX_TENANTS=1000
+
+# Higher resource limits for LIVE
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/hard/limits.memory
+        value: "64Gi"
+      - op: replace
+        path: /spec/hard/limits.cpu
+        value: "32"
+      - op: replace
+        path: /spec/hard/pods
+        value: "200"
+    target:
+      kind: ResourceQuota
+      name: vortex-quota
+
+# Production replicas
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+    target:
+      kind: Deployment
+      name: vault
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+    target:
+      kind: Deployment
+      name: keycloak

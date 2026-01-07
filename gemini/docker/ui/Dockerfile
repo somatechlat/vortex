@@ -25,7 +25,7 @@ FROM nginx:alpine AS runtime
 COPY --from=builder /app/build /usr/share/nginx/html
 
 # Copy nginx config
-COPY docker/ui/nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Create non-root user
 RUN chown -R nginx:nginx /usr/share/nginx/html

@@ -1,0 +1,67 @@
+# SANDBOX Environment Overlay
+# Development/Testing with CPU inference
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: vortex
+
+resources:
+  - ../../base
+
+# SANDBOX ConfigMap
+configMapGenerator:
+  - name: vortex-env-sandbox
+    literals:
+      # Environment
+      - VORTEX_MODE=sandbox
+      - VORTEX_NAMESPACE=vortex
+      - VORTEX_REGION=local
+      
+      # Service Endpoints (non-secret)
+      - VAULT_ADDR=http://vault:8200
+      - KEYCLOAK_ISSUER=http://keycloak:8080/realms/vortex
+      - SPICEDB_ENDPOINT=spicedb:50051
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=vortex
+      - MILVUS_ENDPOINT=milvus:19530
+      
+      # Compute Mode
+      - VORTEX_COMPUTE_MODE=cpu
+      - PYTORCH_DEVICE=cpu
+      - INFERENCE_PRECISION=float32
+      
+      # Logging
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=pretty
+      - TRACE_SAMPLING=1.0
+      
+      # Features
+      - FEATURE_DEBUG_PANEL=true
+      - FEATURE_ADMIN_TOOLS=true
+      - FEATURE_BILLING=false
+      - FEATURE_USAGE_LIMITS=false
+      - FEATURE_SWAGGER=true
+      
+      # Resource Limits
+      - MAX_CONCURRENT_JOBS=2
+      - MAX_VRAM_MB=4096
+      - API_RATE_LIMIT=1000
+      - MAX_TENANTS=10
+
+# Lower resource limits for SANDBOX
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/hard/limits.memory
+        value: "8Gi"
+      - op: replace
+        path: /spec/hard/limits.cpu
+        value: "4"
+      - op: replace
+        path: /spec/hard/pods
+        value: "20"
+    target:
+      kind: ResourceQuota
+      name: vortex-quota

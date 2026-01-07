@@ -71,6 +71,36 @@ Before modifying code, you MUST understand:
 - ✅ Verify API responses from actual docs or servers
 - ❌ NO assumptions, NO "expected JSON", NO hallucinated structures
 
+### Rule 8: PROFESSIONAL CODE COMMENTS ONLY
+- ✅ Comments must be concise, technical, and add value
+- ✅ Use industry-standard terminology
+- ✅ Document WHY, not just WHAT
+- ❌ NO "AI slop" - vague, verbose, or filler comments
+- ❌ NO obvious comments ("increment counter", "return result")
+- ❌ NO self-congratulatory or hype comments
+- ❌ NO ASCII art or decorative comments (except section headers)
+
+**Examples of BAD comments (AI slop):**
+```rust
+// This function does the thing that needs to be done
+// Here we process the data in a beautiful way
+// Magic happens here!
+```
+
+**Examples of GOOD comments:**
+```rust
+// Topological sort: O(V+E) complexity, fails if cycle detected
+// SAFETY: Pointer valid for lifetime of Arena per borrow rules
+// TODO(#123): Replace with zero-copy once Arrow 15 lands
+```
+
+### Rule 9: CENTRALIZED CONFIGURATION
+- ✅ ALL settings in one place (vortex-config crate)
+- ✅ ALL secrets in Vault - NEVER in environment variables
+- ✅ Environment variables for non-secret operational settings only
+- ❌ NO hardcoded URLs, tokens, or credentials
+- ❌ NO scattered .env files with secrets
+
 ---
 
 ## 🔍 STANDARD WORKFLOW

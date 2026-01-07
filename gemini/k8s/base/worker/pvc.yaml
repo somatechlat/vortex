@@ -3,7 +3,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: vortex-models-pvc
-  namespace: vortex-dev
+  namespace: vortex
 spec:
   accessModes:
     - ReadWriteOnce

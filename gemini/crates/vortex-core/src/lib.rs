@@ -45,6 +45,9 @@ pub mod supervisor;
 pub mod db;
 pub mod api;
 pub mod entities;
+pub mod config;
+pub mod settings;
+pub mod tenant;
 
 pub use error::{VortexError, VortexResult};
 pub use graph::{GraphDSL, Node, NodeID, Link};

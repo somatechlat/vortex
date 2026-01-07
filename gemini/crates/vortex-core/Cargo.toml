@@ -53,6 +53,9 @@ anyhow.workspace = true
 # UUID Generation
 uuid.workspace = true
 
+# System Detection
+num_cpus = "1.16"
+
 [dev-dependencies]
 criterion = "0.5"
 tempfile = "3.9"

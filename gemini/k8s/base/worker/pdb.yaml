@@ -3,7 +3,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: vortex-worker-pdb
-  namespace: vortex-dev
+  namespace: vortex
 spec:
   minAvailable: 0
   selector:

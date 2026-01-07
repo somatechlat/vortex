@@ -406,13 +406,170 @@ tilt trigger vault-init
 
 ---
 
-## 8. Traceability Matrix
+## 8. Centralized Configuration (REQ-CFG-001)
 
-| Requirement | K8s Manifest | Tiltfile | Test |
-|-------------|--------------|----------|------|
-| REQ-SEC-001 | vault.yaml | ✅ | pending |
-| REQ-SEC-002 | keycloak.yaml | ✅ | pending |
-| REQ-SEC-003 | spicedb.yaml | ✅ | pending |
-| REQ-DB-001 | postgres.yaml | ✅ | pending |
-| REQ-DB-002 | milvus.yaml | ✅ | pending |
-| REQ-ORM-001 | entities.rs | N/A | pending |
+### 8.1 Design Principles
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| REQ-CFG-001.1 | Single source of truth for all settings | MUST |
+| REQ-CFG-001.2 | NO secrets in environment variables | MUST |
+| REQ-CFG-001.3 | ALL secrets stored in Vault | MUST |
+| REQ-CFG-001.4 | Environment detection (SANDBOX/LIVE) | MUST |
+| REQ-CFG-001.5 | Hardware auto-detection (GPU/CPU) | MUST |
+
+### 8.2 Configuration Separation
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                 ENVIRONMENT VARIABLES                   │
+│              (Non-secret operational settings)          │
+├─────────────────────────────────────────────────────────┤
+│  VORTEX_MODE         │  sandbox | live                  │
+│  VORTEX_NAMESPACE    │  vortex                          │
+│  VAULT_ADDR          │  http://vault:8200               │
+│  POSTGRES_HOST       │  postgres                        │
+│  POSTGRES_PORT       │  5432                            │
+│  POSTGRES_DB         │  vortex                          │
+│  KEYCLOAK_ISSUER     │  http://keycloak:8080/...        │
+│  SPICEDB_ENDPOINT    │  spicedb:50051                   │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│                    VAULT SECRETS                        │
+│              (All sensitive credentials)                │
+├─────────────────────────────────────────────────────────┤
+│  secret/vortex/huggingface/token                        │
+│  secret/vortex/postgres/username                        │
+│  secret/vortex/postgres/password                        │
+│  secret/vortex/spicedb/preshared_key                    │
+│  secret/vortex/keycloak/client_secret                   │
+│  secret/vortex/milvus/access_key                        │
+│  secret/vortex/stripe/secret_key                        │
+│  secret/vortex/stripe/webhook_secret                    │
+│  secret/vortex/internal/encryption_key                  │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 8.3 Rust Implementation
+
+```rust
+// crates/vortex-core/src/settings.rs
+
+/// Centralized settings - single source of truth
+pub struct Settings {
+    pub environment: Environment,
+    pub services: ServiceEndpoints,
+    pub features: FeatureConfig,
+    pub resources: ResourceConfig,
+    pub logging: LoggingConfig,
+}
+
+/// Vault secret paths - ALL secrets here, NEVER in ENV
+pub struct VaultPaths;
+impl VaultPaths {
+    pub const HUGGINGFACE_TOKEN: &str = "secret/vortex/huggingface/token";
+    pub const POSTGRES_PASSWORD: &str = "secret/vortex/postgres/password";
+    // ... etc
+}
+```
+
+---
+
+## 9. Deployment Modes (REQ-CFG-002)
+
+### 9.1 Mode Detection
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| REQ-CFG-002.1 | SANDBOX mode for development/testing | MUST |
+| REQ-CFG-002.2 | LIVE mode for production | MUST |
+| REQ-CFG-002.3 | GPU/CPU auto-detection via nvidia-smi | MUST |
+| REQ-CFG-002.4 | Settings change based on mode | MUST |
+
+### 9.2 Mode Comparison
+
+| Setting | SANDBOX | LIVE |
+|---------|---------|------|
+| Log Level | debug | error |
+| Log Format | pretty | json |
+| Debug Panel | ✅ | ❌ |
+| Billing | ❌ | ✅ |
+| Swagger | ✅ | ❌ |
+| Rate Limit | 1000/min | 100/min |
+| Max Jobs | 2 | 32 |
+| Inference | CPU | GPU (if available) |
+
+### 9.3 Hardware Detection
+
+```rust
+// crates/vortex-core/src/config.rs
+
+pub struct HardwareCapabilities {
+    pub cpu_cores: usize,
+    pub ram_bytes: u64,
+    pub gpus: Vec<GpuDevice>,
+    pub cuda_available: bool,
+}
+
+impl HardwareCapabilities {
+    /// Auto-detect via nvidia-smi
+    pub fn detect() -> Self { ... }
+    
+    /// Recommend CPU or GPU mode
+    pub fn recommended_compute_mode(&self) -> ComputeMode { ... }
+}
+```
+
+---
+
+## 10. Coding Standards (REQ-CODE-001)
+
+### 10.1 Professional Code Comments
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| REQ-CODE-001.1 | Comments must be concise and technical | MUST |
+| REQ-CODE-001.2 | Document WHY, not just WHAT | MUST |
+| REQ-CODE-001.3 | No "AI slop" - vague or filler comments | MUST |
+| REQ-CODE-001.4 | No obvious comments | MUST |
+| REQ-CODE-001.5 | Use industry-standard terminology | SHOULD |
+
+### 10.2 Prohibited Comment Patterns
+
+```rust
+// ❌ BAD (AI slop)
+// This function does the thing
+// Here we process the data
+// Magic happens here!
+
+// ✅ GOOD (Professional)
+// Topological sort: O(V+E) complexity
+// SAFETY: Pointer valid for Arena lifetime
+```
+
+### 10.3 Centralized Configuration
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| REQ-CODE-002.1 | All settings in vortex-config crate | MUST |
+| REQ-CODE-002.2 | All secrets in Vault, never in ENV | MUST |
+| REQ-CODE-002.3 | No hardcoded URLs or credentials | MUST |
+| REQ-CODE-002.4 | ENV vars for operational settings only | MUST |
+
+---
+
+## 11. Traceability Matrix
+
+| Requirement | K8s Manifest | Rust Module | Test |
+|-------------|--------------|-------------|------|
+| REQ-SEC-001 | vault.yaml | - | pending |
+| REQ-SEC-002 | keycloak.yaml | - | pending |
+| REQ-SEC-003 | spicedb.yaml | - | pending |
+| REQ-DB-001 | postgres.yaml | entities.rs | pending |
+| REQ-DB-002 | milvus.yaml | - | pending |
+| REQ-ORM-001 | - | entities.rs | pending |
+| REQ-CFG-001 | - | settings.rs | ✅ |
+| REQ-CFG-002 | - | config.rs | ✅ |
+| REQ-CODE-001 | - | (all modules) | ✅ |
+| REQ-CODE-002 | - | vortex-config | ✅ |

@@ -4,7 +4,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: vortex-data-pvc
-  namespace: vortex-dev
+  namespace: vortex
   labels:
     app.kubernetes.io/name: vortex
     app.kubernetes.io/component: storage

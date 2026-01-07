@@ -5,6 +5,7 @@ members = [
     "crates/vortex-protocol",
     "crates/vortex-registry",
     "crates/vortex-telemetry",
+    "crates/vortex-config",
 ]
 
 [workspace.package]

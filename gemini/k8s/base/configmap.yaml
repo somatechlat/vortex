@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vortex-env
+  namespace: vortex
+  labels:
+    app.kubernetes.io/name: vortex
+    app.kubernetes.io/part-of: vortex
+data:
+  # Base environment settings
+  # Overlays (sandbox/live) override these values
+  
+  # Mode - overridden by overlay
+  VORTEX_MODE: "sandbox"
+  VORTEX_NAMESPACE: "vortex"
+  
+  # Service Endpoints (non-secret base defaults)
+  VAULT_ADDR: "http://vault:8200"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "vortex"
+  
+  # Compute defaults
+  VORTEX_COMPUTE_MODE: "cpu"
+  PYTORCH_DEVICE: "cpu"
+  
+  # Logging defaults
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"

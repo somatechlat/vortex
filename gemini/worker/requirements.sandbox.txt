@@ -1,0 +1,26 @@
+# VORTEX Worker - SANDBOX Requirements (CPU-only)
+# Smaller PyTorch for development/testing
+# Real inference but on CPU
+
+# Core ML - CPU ONLY (much smaller download)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.0+cpu
+torchvision==0.17.0+cpu
+
+# Data
+numpy>=1.26.0
+
+# Data interchange
+pyarrow>=14.0.0
+
+# IPC Protocol
+protobuf>=4.25.0
+
+# Logging
+structlog>=23.2.0
+
+# HuggingFace (for real model loading)
+diffusers>=0.27.0
+transformers>=4.38.0
+safetensors>=0.4.0
+accelerate>=0.27.0

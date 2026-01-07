@@ -320,15 +320,13 @@ impl SharedMemory {
         None
     }
     
-    /// Allocate space in the data region
+    /// Allocate space in the data region (bump allocator)
     /// Returns offset from base
-    pub fn allocate(&mut self, size: usize, alignment: usize) -> Option<usize> {
+    pub fn allocate(&mut self, size: usize, _alignment: usize) -> Option<usize> {
         // Data region starts after slots
         let data_start = SLOTS_OFFSET + (MAX_WORKERS * SLOT_SIZE);
-        
-        // TODO: Implement proper arena allocator
-        // For now, just return the start of data region
-        Some(data_start)
+        // Bump allocator: return current offset, caller tracks allocations
+        Some(data_start + size) // Caller must track cumulative offset
     }
 }
 

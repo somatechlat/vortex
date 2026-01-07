@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: vortex-worker
-  namespace: vortex-dev
+  namespace: vortex
   labels:
     app.kubernetes.io/name: vortex-worker
     app.kubernetes.io/component: worker

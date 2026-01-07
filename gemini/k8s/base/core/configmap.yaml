@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: vortex-config
-  namespace: vortex-dev
+  namespace: vortex
 data:
   VORTEX_ENV: "development"
   VORTEX_LOG_FORMAT: "json"
