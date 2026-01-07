@@ -81,6 +81,7 @@ class ShmArena:
         import posix_ipc
 
         self.name = name
+        self._created = False
 
         # Open or create
         if size > 0:
@@ -89,6 +90,7 @@ class ShmArena:
                 posix_ipc.O_CREAT | posix_ipc.O_RDWR,
                 size=size,
             )
+            self._created = True
         else:
             self.shm = posix_ipc.SharedMemory(name, posix_ipc.O_RDWR)
 
@@ -97,6 +99,15 @@ class ShmArena:
 
         # Cast to header structure
         self.header = ShmHeader.from_buffer(self.mm)
+
+        # Initialize if newly created (magic will be 0)
+        if self._created and self.header.magic == 0:
+            self.header.magic = ShmHeader.MAGIC
+            self.header.version = 1
+            self.header.num_workers = 0
+            self.header.arena_size = size
+            self.header.arena_used = 0
+            self.header.lock = 0
 
         # Validate magic
         if self.header.magic != ShmHeader.MAGIC:

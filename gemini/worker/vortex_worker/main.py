@@ -47,9 +47,16 @@ def main() -> NoReturn:
     signal.signal(signal.SIGINT, handle_signal)
 
     try:
-        # Connect to shared memory
-        shm = ShmArena(config.shm_name)
-        logger.info(f"Connected to SHM arena: {config.shm_name}")
+        # Connect/create shared memory arena (64MB default)
+        # In K8s each pod creates its own SHM in /dev/shm
+        SHM_SIZE = 64 * 1024 * 1024  # 64 MB
+        try:
+            shm = ShmArena(config.shm_name, size=SHM_SIZE)
+            logger.info(f"Created SHM arena: {config.shm_name} ({SHM_SIZE} bytes)")
+        except Exception as create_err:
+            # Try to open existing if create fails
+            shm = ShmArena(config.shm_name)
+            logger.info(f"Connected to existing SHM arena: {config.shm_name}")
 
         # Connect to IPC socket
         ipc = IPCSocket(config.ipc_path)
