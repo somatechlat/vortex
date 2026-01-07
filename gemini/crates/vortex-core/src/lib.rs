@@ -48,6 +48,7 @@ pub mod entities;
 pub mod config;
 pub mod settings;
 pub mod tenant;
+pub mod authz;
 
 pub use error::{VortexError, VortexResult};
 pub use graph::{GraphDSL, Node, NodeID, Link};
