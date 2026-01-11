@@ -29,7 +29,7 @@ All infrastructure components deployed via Kubernetes (Tilt + Minikube for devel
 
 ## 2. Port Authority
 
-All services follow the VORTEX Port Authority specification (11000+ range).
+All externally exposed services follow the VORTEX Port Authority specification (11000+ range). Internal-only ports may use other ranges when required.
 
 | Port | Service | Protocol | Description |
 |------|---------|----------|-------------|

@@ -100,7 +100,7 @@ pub async fn start_server() -> VortexResult<()> {
     let port = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
-        .unwrap_or(11000);
+        .unwrap_or(11188);
 
     let server = VortexServer::from_config(config, db).await?;
     server.run(port).await

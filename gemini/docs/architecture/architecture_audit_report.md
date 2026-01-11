@@ -13,7 +13,7 @@
 | From → To | Interface | Status |
 |-----------|-----------|--------|
 | Master → Core Engine | `POST /graph/execution`, `WS /ws/gateway` | ✅ Consistent |
-| Master → Compute Fabric | `SHM /dev/shm/vtx_shm`, `UDS /tmp/vtx.sock` | ✅ Consistent |
+| Master → Compute Fabric | `SHM /dev/shm/vortex-shm`, `UDS /tmp/vortex.sock` | ✅ Consistent |
 | Master → Frontend | HTTP/WS on configurable port | ✅ Consistent |
 | Core Engine → Compute Fabric | Protobuf over UDS | ✅ Consistent |
 | Core Engine → Registry | `vortex.toml`, `vortex.lock` | ✅ Consistent |
@@ -139,7 +139,7 @@
 | Issue | Location | Recommendation |
 |-------|----------|----------------|
 | Appendix numbering | After math additions | Re-sequence G→H→I consistently |
-| Port configuration | Master 3.1.1 | Specify default port (e.g., 8188) |
+| Port configuration | Master 3.1.1 | Specify default port (11188) |
 | macOS sandbox | Compute 2.4 | Document App Sandbox alternative to seccomp |
 
 ---

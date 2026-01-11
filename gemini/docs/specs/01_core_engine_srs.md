@@ -953,7 +953,7 @@ tls_cert_path = "~/.vortex/cert.pem"
 tls_key_path = "~/.vortex/key.pem"
 
 [shm]
-name = "/vtx_shm"
+name = "/vortex-shm"
 size_bytes = 68719476736  # 64 GB
 permissions = 0o600
 ```
@@ -1235,7 +1235,7 @@ sequenceDiagram
     WRK->>WRK: Initialize Python
     WRK->>WRK: Load PyTorch
     WRK->>SHM: mmap(SHM_NAME)
-    WRK->>IPC: connect(/tmp/vtx.sock)
+    WRK->>IPC: connect(/tmp/vortex.sock)
     WRK->>IPC: Send Handshake
     SUP->>IPC: Recv Handshake
     SUP->>IPC: Send Ack(slot_id)
@@ -1902,5 +1902,3 @@ stateDiagram-v2
 | 14.0.0 | 2026-01-06 | System | Visual Flow diagrams |
 | 15.0.0 | 2026-01-06 | System | Use Cases, Security, Reliability |
 | 16.0.0 | 2026-01-06 | System | UML Class, Component, Sequence, Activity, State Diagrams |
-
-

@@ -667,7 +667,7 @@ pub fn create_router(state: AppState) -> Router {
 |-----------|----------|------|---------------|
 | HTTP API | REST/JSON | 11188 | OpenAPI spec |
 | WebSocket | RFC 6455 | 11189 | WS Protocol doc |
-| IPC | Protobuf/UDS | /tmp/vtx.sock | Proto files |
+| IPC | Protobuf/UDS | /tmp/vortex.sock | Proto files |
 | Metrics | Prometheus | 11191 | Grafana dashboards |
 
 ### 4.2 Internal Interfaces

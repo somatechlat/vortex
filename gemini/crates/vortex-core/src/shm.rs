@@ -6,7 +6,7 @@ use crate::error::{VortexError, VortexResult};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 /// Shared memory region name
-pub const SHM_NAME: &str = "/vtx_shm";
+pub const SHM_NAME: &str = "/vortex-shm";
 
 /// Default SHM size (64GB)
 pub const SHM_SIZE: usize = 64 * 1024 * 1024 * 1024;

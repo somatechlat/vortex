@@ -14,8 +14,8 @@
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
 | `VORTEX_ENV` | enum | `development` | ❌ | Environment: `development`, `staging`, `production` |
-| `VORTEX_PORT` | int | `11188` | ❌ | HTTP API port (Port Authority: 11000+) |
-| `VORTEX_WS_PORT` | int | `11189` | ❌ | WebSocket port |
+| `VORTEX_PORT` | int | `11188` | ❌ | HTTP API port (external; Port Authority: 11000+) |
+| `VORTEX_WS_PORT` | int | `11189` | ❌ | WebSocket port (external; Port Authority: 11000+) |
 | `VORTEX_HOST` | string | `0.0.0.0` | ❌ | Bind address |
 | `VORTEX_WORKERS` | int | `4` | ❌ | Number of Python worker processes |
 | `VORTEX_LOG_LEVEL` | enum | `info` | ❌ | Log level: `error`, `warn`, `info`, `debug`, `trace` |
@@ -25,7 +25,7 @@
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_SHM_NAME` | string | `vtx_arena` | ❌ | POSIX shared memory name |
+| `VORTEX_SHM_NAME` | string | `/vortex-shm` | ❌ | POSIX shared memory name |
 | `VORTEX_SHM_SIZE` | size | `68719476736` | ❌ | Arena size in bytes (default: 64GB) |
 | `VORTEX_SHM_PATH` | path | `/dev/shm` | ❌ | SHM mount path |
 
@@ -33,8 +33,8 @@
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_SOCKET_PATH` | path | `/tmp/vtx.sock` | ❌ | Unix domain socket path |
-| `VORTEX_SOCKET_TIMEOUT` | int | `30000` | ❌ | Socket timeout in ms |
+| `VORTEX_IPC_PATH` | path | `/tmp/vortex.sock` | ❌ | Unix domain socket path |
+| `VORTEX_IPC_TIMEOUT` | int | `30000` | ❌ | IPC socket timeout in ms |
 | `VORTEX_HEARTBEAT_INTERVAL` | int | `1000` | ❌ | Worker heartbeat interval in ms |
 
 ### 1.4 Database Variables
@@ -107,7 +107,7 @@ ws_port = 11189
 workers = 4
 
 [shm]
-name = "vtx_arena"
+name = "/vortex-shm"
 size = "64GB"
 
 [database]
@@ -161,13 +161,13 @@ RUST_LOG=vortex_core=debug
 # ========================================
 # SHARED MEMORY
 # ========================================
-VORTEX_SHM_NAME=vtx_arena
+VORTEX_SHM_NAME=/vortex-shm
 VORTEX_SHM_SIZE=68719476736
 
 # ========================================
 # IPC
 # ========================================
-VORTEX_SOCKET_PATH=/tmp/vtx.sock
+VORTEX_IPC_PATH=/tmp/vortex.sock
 VORTEX_HEARTBEAT_INTERVAL=1000
 
 # ========================================
@@ -321,11 +321,12 @@ Variables are loaded in this order (later overrides earlier):
 
 | Secret | Storage | Access |
 |--------|---------|--------|
-| API Keys | Environment / Vault | `VORTEX_*_API_KEY` |
-| Private Keys | Filesystem (0600) | `VORTEX_*_KEY_PATH` |
-| Tokens | Environment | `VORTEX_*_TOKEN` |
+| API Keys | Vault | `secret/vortex/*` |
+| Private Keys | Vault or Filesystem (0600) | `secret/vortex/*` |
+| Tokens | Vault | `secret/vortex/*` |
 
 **Never commit secrets to version control.**
+**Secrets must not be passed via environment variables.**
 
 ---
 

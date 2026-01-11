@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 # Constants (matching SRS Section 3.4)
 # ============================================================================
 
-SOCKET_PATH = "/tmp/vtx.sock"
-SHM_NAME = "/vtx_shm"
+SOCKET_PATH = "/tmp/vortex.sock"
+SHM_NAME = "/vortex-shm"
 PROTOCOL_VERSION = 1
 
 # Worker status (matching shm.rs)

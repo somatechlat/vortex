@@ -1,4 +1,4 @@
-//! IPC - Inter-Process Communication via Unix Domain Sockets
+CT FILES //! IPC - Inter-Process Communication via Unix Domain Sockets
 //!
 //! Implements SRS Section 3.6.2 (IPC Gateway Trait)
 
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Default socket path
-pub const SOCKET_PATH: &str = "/tmp/vtx.sock";
+pub const SOCKET_PATH: &str = "/tmp/vortex.sock";
 
 /// Protocol version
 pub const PROTOCOL_VERSION: u32 = 1;

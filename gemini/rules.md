@@ -190,7 +190,7 @@ Before touching code, confirm:
 | **Language** | Rust 1.75+ (Tokio async runtime) |
 | **Transport** | Apache Arrow format via POSIX Shared Memory (64GB arena) |
 | **Python Role** | Inference kernels ONLY — no server logic |
-| **IPC** | Protobuf over Unix Domain Sockets (`/tmp/vtx.sock`) |
+| **IPC** | Protobuf over Unix Domain Sockets (`/tmp/vortex.sock`) |
 
 ### Rule 9: UI Framework Policy
 | Component | Requirement |
@@ -469,7 +469,7 @@ We **ONLY** follow ISO-style structure because it produces the clearest and most
 **Configuration Policy:**
 - ✅ All config via environment variables (12-factor app)
 - ✅ Use `.env.example` as template — never commit `.env`
-- ✅ Secrets via `VORTEX_SECRET_*` prefix, never hardcoded
+- ✅ Secrets only via Vault paths, never hardcoded
 - ❌ NO environment-specific code branches (use config only)
 
 ### Rule 16: Build & Release Policy
@@ -687,4 +687,3 @@ kubectl top pods -n vortex-dev
 **Last Updated**: 2026-01-06  
 **Total SRS Lines**: 8,694  
 **Status**: Ready for Implementation 🚀
-

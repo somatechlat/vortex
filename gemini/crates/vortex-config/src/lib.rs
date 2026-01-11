@@ -691,11 +691,27 @@ impl VortexConfig {
     
     /// Validate configuration
     pub fn validate(&self) -> Result<(), ConfigError> {
+        const PORT_RANGE_START: u16 = 11000;
+        const PORT_RANGE_END: u16 = 11999;
+
         // Validate API ports
         if self.api.port == self.api.ws_port {
             return Err(ConfigError::Validation(
                 "API port and WebSocket port cannot be the same".to_string()
             ));
+        }
+
+        // Enforce port authority range
+        for (name, port) in [
+            ("api.port", self.api.port),
+            ("api.ws_port", self.api.ws_port),
+            ("api.metrics_port", self.api.metrics_port),
+        ] {
+            if port < PORT_RANGE_START || port > PORT_RANGE_END {
+                return Err(ConfigError::Validation(format!(
+                    "{name} must be within {PORT_RANGE_START}-{PORT_RANGE_END}"
+                )));
+            }
         }
         
         // Validate pool config
@@ -780,8 +796,8 @@ mod tests {
     fn test_validation_fails_for_same_ports() {
         let config = ConfigBuilder::sandbox()
             .api(ApiConfig {
-                port: 8080,
-                ws_port: 8080,
+                port: 11188,
+                ws_port: 11188,
                 ..Default::default()
             })
             .build();

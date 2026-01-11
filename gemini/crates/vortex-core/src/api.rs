@@ -1,7 +1,7 @@
 //! API - HTTP/WebSocket Server using Axum
 //!
 //! Implements SRS Section 3.6.3 (REST API) and Section 3.6.4 (WebSocket)
-//! Port Authority: 11000 (HTTP)
+//! Port Authority: 11188 (HTTP)
 
 use axum::{
     extract::{Path, State, WebSocketUpgrade},

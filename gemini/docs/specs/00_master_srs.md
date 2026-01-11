@@ -1,7 +1,7 @@
 # Software Requirements Specification (SRS): Master System Architecture
 **Project**: VORTEX-GEN 3.0 "Centaur"
 **Module**: Architecture & Core Constraints
-**Version**: 9.1.0 (ISO Standard)
+**Version**: 9.1.1 (ISO Standard)
 **Date**: 2026-01-06
 **Standard**: ISO/IEC 29148:2018
 
@@ -58,7 +58,7 @@ VORTEX-GEN 3.0 abandons the traditional node-graph "spaghetti" UI in favor of a 
 *   **UI-01**: The System shall serve a Single Page Application (SPA).
 *   **UI-02**: The UI shall implement the "Vertical Rack" paradigm (no infinite canvas).
 *   **UI-03**: The UI shall use WebGL for the "Cinematic Background" but DOM for the Rack Units.
-*   **UI-04**: Port 11188 (Default).
+*   **UI-04**: Port 11188 (Default, served by Core HTTP).
 
 #### 3.1.2 Hardware Interfaces
 *   **HW-01**: GPU Interface via PyTorch/CUDA/MPS.
@@ -102,6 +102,10 @@ VORTEX-GEN 3.0 abandons the traditional node-graph "spaghetti" UI in favor of a 
 (unchanged from v9.0.0)
 
 #### 3.4.2 IPC Protocol
-(unchanged from v9.0.0)
+*   **Protocol**: Protobuf over Unix Domain Socket (UDS).
+*   **Framing**: 4-byte unsigned length prefix (little-endian), followed by protobuf payload.
+*   **Schema Source**: `proto/control.proto` and `proto/worker.proto`.
+*   **Socket Path**: `/tmp/vortex.sock` (single authoritative path).
+*   **Compatibility**: Protocol version negotiated via `WorkerHandshake`.
 
 ---
