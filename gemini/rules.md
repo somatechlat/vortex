@@ -100,6 +100,7 @@ Before modifying code, you MUST understand:
 - ✅ Environment variables for non-secret operational settings only
 - ❌ NO hardcoded URLs, tokens, or credentials
 - ❌ NO scattered .env files with secrets
+ - ✅ Development must mirror production behavior; only local resource limits may differ
 
 ---
 

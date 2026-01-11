@@ -5,6 +5,9 @@
 torch>=2.1.0
 numpy>=1.26.0
 
+# DLPack for zero-copy tensors (NEW)
+dlpack>=0.8.0
+
 # Data interchange
 pyarrow>=14.0.0
 

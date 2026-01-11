@@ -1,0 +1,298 @@
+# ═══════════════════════════════════════════════════════════════
+# VORTEX CENTRALIZED CONFIGURATION - SINGLE SOURCE OF TRUTH
+# ═══════════════════════════════════════════════════════════════
+
+# All values here are canonical. No hardcoded values anywhere else.
+# This file is referenced by:
+# - Rust: crates/vortex-config/src/lib.rs
+# - Django: api/django_admin/vortex_admin/settings.py
+# - Docker: infra/docker/*/docker-compose.yml
+# - K8s: k8s/base/configmap.yaml
+# - Tilt: infra/tilt/Tiltfile
+
+# ═══════════════════════════════════════════════════════════════
+# DEPLOYMENT MODE
+# ═══════════════════════════════════════════════════════════════
+mode: sandbox  # Options: sandbox, live
+
+# ═══════════════════════════════════════════════════════════════
+# PORT ALLOCATION (VIBE Rule 25 - NEVER CHANGE)
+# ═══════════════════════════════════════════════════════════════
+ports:
+  vortex_api: 11188        # Main REST API
+  vortex_ws: 11189         # WebSocket
+  vortex_metrics: 11191    # Metrics endpoint
+  vortex_admin: 11207      # Django Admin
+  
+  # Infrastructure services
+  postgres: 11202
+  vault: 11200
+  keycloak: 11201
+  milvus_grpc: 11203
+  milvus_web: 11204
+  spicedb_grpc: 11205
+  spicedb_web: 11206
+
+# ═══════════════════════════════════════════════════════════════
+# HOSTNAMES & ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+hosts:
+  # Development (local)
+  postgres: localhost
+  vault: localhost
+  keycloak: localhost
+  milvus: localhost
+  spicedb: localhost
+  vortex_core: localhost
+  
+  # Production (Kubernetes/Docker)
+  postgres_prod: postgres
+  vault_prod: vault
+  keycloak_prod: keycloak
+  milvus_prod: milvus
+  spicedb_prod: spicedb
+  vortex_core_prod: vortex-core
+
+# ═══════════════════════════════════════════════════════════════
+# DATABASE CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+database:
+  postgres:
+    name: vortex
+    user: vortex
+    # Password via secrets management (Vault/Env)
+    host: ${POSTGRES_HOST:-localhost}
+    port: 11202
+  
+  # Connection pool settings
+  pool:
+    min_connections: 2
+    max_connections: 10
+    connect_timeout_secs: 30
+    idle_timeout_secs: 600
+
+# ═══════════════════════════════════════════════════════════════
+# SECURITY CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+security:
+  # Vault (Secrets Management)
+  vault:
+    mount: secret
+    paths:
+      huggingface_token: secret/vortex/huggingface/token
+      postgres_credentials: secret/vortex/postgres
+      spicedb_key: secret/vortex/spicedb/preshared_key
+      keycloak_secret: secret/vortex/keycloak/client_secret
+      encryption_key: secret/vortex/internal/encryption_key
+      stripe_keys: secret/vortex/stripe
+  
+  # JWT / OIDC (Keycloak)
+  jwt:
+    issuer: http://localhost:11201/realms/master
+    audience: vortex-api
+    leeway_secs: 60
+  
+  # Authorization (SpiceDB)
+  spicedb:
+    endpoint: localhost:11205
+    preshared_key: ""  # From secrets
+
+# ═══════════════════════════════════════════════════════════════
+# WORKER CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+worker:
+  compute_mode: gpu  # cpu, gpu
+  precision: float16  # float32, float16, bfloat16
+  model_cache_dir: /models
+  max_vram_mb: 4096
+  pool_size: 2
+  
+  # IPC & Shared Memory
+  ipc_path: /tmp/vortex.sock
+  shm_name: /vortex-shm
+  shm_size_mb: 2048
+
+# ═══════════════════════════════════════════════════════════════
+# API CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+api:
+  host: 0.0.0.0
+  port: 11188
+  ws_port: 11189
+  metrics_port: 11191
+  
+  # CORS
+  cors_origins:
+    - http://localhost:11100
+    - http://localhost:3000
+    - https://vortex.ai
+  
+  # Rate Limiting
+  rate_limit:
+    requests_per_minute: 1000
+    burst_size: 100
+
+# ═══════════════════════════════════════════════════════════════
+# FEATURE FLAGS
+# ═══════════════════════════════════════════════════════════════
+features:
+  debug_panel: true
+  admin_tools: true
+  billing: false
+  usage_limits: false
+  swagger: true
+  telemetry: true
+
+# ═══════════════════════════════════════════════════════════════
+# RESOURCE LIMITS
+# ═══════════════════════════════════════════════════════════════
+resources:
+  max_concurrent_jobs: 4
+  max_graphs_per_tenant: 50
+  max_models_per_tenant: 10
+  max_storage_per_tenant_gb: 10
+
+# ═══════════════════════════════════════════════════════════════
+# LOGGING & OBSERVABILITY
+# ═══════════════════════════════════════════════════════════════
+logging:
+  level: debug  # trace, debug, info, warn, error
+  format: pretty  # json, pretty
+  trace_sampling: 1.0  # 0.0 - 1.0
+  output: stdout  # stdout, stderr, file
+
+# ═══════════════════════════════════════════════════════════════
+# TENANCY CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+tenancy:
+  isolation: namespace  # namespace, database, schema
+  max_tenants: 10
+  default_tier: free  # free, pro, enterprise
+
+# ═══════════════════════════════════════════════════════════════
+# ML MODELS CONFIGURATION
+# ═══════════════════════════════════════════════════════════════
+models:
+  # HuggingFace mirror
+  hf_mirror: https://huggingface.co
+  hf_cache_dir: /models/huggingface
+  
+  # Model registry (Milvus)
+  milvus:
+    collection: vortex_models
+    dimension: 768  # Embedding dimension
+  
+  # Allowed model types
+  allowed_types:
+    - checkpoint
+    - diffusers
+    - lora
+    - vae
+    - controlnet
+
+# ═══════════════════════════════════════════════════════════════
+# INFRASTRUCTURE SERVICES
+# ═══════════════════════════════════════════════════════════════
+infrastructure:
+  # PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    port: 11202
+  
+  # HashiCorp Vault
+  vault:
+    image: hashicorp/vault:1.15
+    port: 11200
+  
+  # Keycloak (AuthN)
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    port: 11201
+  
+  # Milvus (Vector DB)
+  milvus:
+    image: milvusdb/milvus:v2.3.4
+    grpc_port: 11203
+    web_port: 11204
+  
+  # SpiceDB (AuthZ)
+  spicedb:
+    image: quay.io/authzed/spicedb:v1.29.0
+    grpc_port: 11205
+    web_port: 11206
+
+# ═══════════════════════════════════════════════════════════════
+# SECURITY HARDENING
+# ═══════════════════════════════════════════════════════════════
+security_hardening:
+  # Process isolation
+  seccomp: enabled
+  namespaces: enabled
+  capabilities: drop_all
+  
+  # Resource limits
+  cpu_quota: 1000  # millicores
+  memory_limit_mb: 8192
+  
+  # Network policies
+  network_policy:
+    enabled: true
+    allowed_ingress: [11188, 11189, 11191, 11207]
+  
+  # File system
+  read_only_root: true
+  tmpfs:
+    - /tmp
+    - /run
+
+# ═══════════════════════════════════════════════════════════════
+# MONITORING & ALERTING
+# ═══════════════════════════════════════════════════════════════
+monitoring:
+  # Prometheus
+  prometheus:
+    scrape_interval: 15s
+    
+  # OpenTelemetry
+  otel:
+    endpoint: http://localhost:4317
+    trace_export: true
+    metric_export: true
+  
+  # Health checks
+  health:
+    interval: 30s
+    timeout: 5s
+    failure_threshold: 3
+
+# ═══════════════════════════════════════════════════════════════
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# ═══════════════════════════════════════════════════════════════
+overrides:
+  dev:
+    # Development-specific (applied on top)
+    features:
+      debug_panel: true
+      admin_tools: true
+      billing: false
+      usage_limits: false
+      swagger: true
+    resources:
+      max_concurrent_jobs: 2
+    logging:
+      level: debug
+      trace_sampling: 1.0
+  
+  prod:
+    # Production-specific (applied on top)
+    features:
+      debug_panel: false
+      admin_tools: false
+      billing: true
+      usage_limits: true
+      swagger: false
+    resources:
+      max_concurrent_jobs: 100
+    logging:
+      level: error
+      trace_sampling: 0.01

@@ -7,6 +7,8 @@
 
 ---
 
+> **Policy**: Development must mirror production behavior; only local resource limits may differ.
+
 ## 1. Introduction
 
 ### 1.1 Purpose
@@ -19,6 +21,7 @@ The Registry System ensures that user graphs are reproducible and safe.
 *   **Dependency Resolution**: Solving version conflicts using PubGrub (SAT).
 *   **Security Scanning**: Detecting malware via Abstract Syntax Tree (AST) analysis.
 *   **Isolation**: Forking Python environments to support conflicting requirements.
+*   **Tool Metadata**: Declaring risk flags and approval requirements for tools.
 
 ### 1.3 Definitions, Acronyms, and Abbreviations
 | Term | Definition |
@@ -119,6 +122,8 @@ authors = ["Soma User <user@soma.org>"]
 [vortex]
 isolation_level = "venv" # or "process"
 permissions = ["fs:read", "net:pypi"]
+risk_flags = ["EXTERNAL_IO", "HIGH_COST"]
+requires_approval = true
 ```
 
 #### 3.4.2 Lockfile Format (`vortex.lock`)
@@ -1750,4 +1755,3 @@ flowchart TD
 | 14.0.0 | 2026-01-06 | System | Flow Diagrams |
 | 15.0.0 | 2026-01-06 | System | 1200+ line expansion |
 | 16.0.0 | 2026-01-06 | System | UML, Components, Sequences, Activities, States, Security, Lockfile, Envs |
-

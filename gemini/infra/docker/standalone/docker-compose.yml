@@ -1,0 +1,168 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vortex
+      POSTGRES_USER: vortex
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    ports:
+      - "11202:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vortex -d vortex"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  vault:
+    image: hashicorp/vault:1.15
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      export VAULT_DEV_ROOT_TOKEN_ID="$$(cat /run/secrets/vault_dev_token)" &&
+      exec vault server -dev -dev-root-token-id="$$VAULT_DEV_ROOT_TOKEN_ID" -dev-listen-address=0.0.0.0:8200
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+    secrets:
+      - vault_dev_token
+    ports:
+      - "11200:8200"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      export KEYCLOAK_ADMIN_PASSWORD="$$(cat /run/secrets/keycloak_admin_password)" &&
+      export KC_DB_PASSWORD="$$(cat /run/secrets/postgres_password)" &&
+      exec /opt/keycloak/bin/kc.sh start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KC_HEALTH_ENABLED: "true"
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/vortex
+      KC_DB_USERNAME: vortex
+    secrets:
+      - keycloak_admin_password
+      - postgres_password
+    ports:
+      - "11201:8080"
+    depends_on:
+      - postgres
+
+  milvus:
+    image: milvusdb/milvus:v2.3.4
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      COMMON_STORAGETYPE: local
+    ports:
+      - "11203:19530"
+      - "11204:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+
+  spicedb:
+    image: quay.io/authzed/spicedb:v1.29.0
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      export SPICEDB_PRESHARED_KEY="$$(cat /run/secrets/spicedb_preshared_key)" &&
+      exec spicedb serve --grpc-preshared-key="$$SPICEDB_PRESHARED_KEY" --http-enabled=true --datastore-engine=memory
+    secrets:
+      - spicedb_preshared_key
+    ports:
+      - "11205:50051"
+      - "11206:8443"
+    depends_on:
+      - postgres
+      - keycloak
+
+  vortex-core:
+    build:
+      context: ../../..
+      dockerfile: docker/core/Dockerfile
+    image: vortex-core
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      export POSTGRES_PASSWORD="$$(cat /run/secrets/postgres_password)" &&
+      exec /app/vortex-core
+    environment:
+      VORTEX_MODE: sandbox
+      VORTEX_IPC_PATH: /tmp/vortex.sock
+      VORTEX_SHM_NAME: /vortex-shm
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: vortex
+      POSTGRES_USER: vortex
+      VAULT_ADDR: http://vault:8200
+      KEYCLOAK_ISSUER: http://keycloak:8080/realms/master
+      SPICEDB_ENDPOINT: spicedb:50051
+      MILVUS_ENDPOINT: milvus:19530
+    secrets:
+      - postgres_password
+    ports:
+      - "11188:11188"
+      - "11189:11189"
+      - "11191:11191"
+    volumes:
+      - ipc:/tmp
+    shm_size: "2g"
+    depends_on:
+      - postgres
+      - vault
+      - keycloak
+      - milvus
+      - spicedb
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:11188/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  vortex-worker:
+    build:
+      context: ../../..
+      dockerfile: docker/worker/Dockerfile
+    image: vortex-worker
+    environment:
+      VORTEX_SLOT_ID: "0"
+      VORTEX_IPC_PATH: /tmp/vortex.sock
+      VORTEX_SHM_NAME: /vortex-shm
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ipc:/tmp
+      - models:/models
+    ipc: service:vortex-core
+    depends_on:
+      - vortex-core
+
+  vortex-ui:
+    build:
+      context: ../../..
+      dockerfile: docker/ui/Dockerfile
+    image: vortex-ui
+    environment:
+      VORTEX_API_URL: http://vortex-core:11188
+      VORTEX_WS_URL: ws://vortex-core:11189
+    ports:
+      - "11100:80"
+    depends_on:
+      - vortex-core
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  keycloak_admin_password:
+    file: ./secrets/keycloak_admin_password
+  spicedb_preshared_key:
+    file: ./secrets/spicedb_preshared_key
+  vault_dev_token:
+    file: ./secrets/vault_dev_token
+
+volumes:
+  postgres_data:
+  milvus_data:
+  models:
+  ipc:

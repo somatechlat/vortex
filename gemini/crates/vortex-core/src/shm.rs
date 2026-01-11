@@ -354,3 +354,121 @@ mod tests {
         assert_eq!(slot.get_status(), WorkerStatus::Busy);
     }
 }
+
+/// DLPack Tensor Header for zero-copy storage
+#[repr(C, align(64))]
+pub struct TensorHeader {
+    pub magic: u64,                    // 0x5453_4552_4f56_5458
+    pub dtype_code: u8,
+    pub dtype_bits: u8,
+    pub dtype_lanes: u8,
+    pub reserved1: u8,
+    pub device_type: u8,
+    pub device_id: u16,
+    pub ndim: u8,
+    pub shape: [i64; 8],
+    pub data_bytes: u64,
+    pub data_offset: u64,
+    pub reserved2: [u8; 16],
+}
+
+const TENSOR_MAGIC: u64 = 0x5453_4552_4f56_5458;
+
+impl TensorHeader {
+    pub fn is_valid(&self) -> bool {
+        self.magic == TENSOR_MAGIC
+    }
+}
+
+impl SharedMemory {
+    pub fn allocate_tensor(&mut self, dtype_code: u8, dtype_bits: u8, dtype_lanes: u8,
+                          device_type: u8, device_id: u16, shape: &[i64], data_bytes: usize) -> VortexResult<usize> {
+        if shape.len() > 8 {
+            return Err(VortexError::ShmFailure { reason: "Too many dimensions".to_string() });
+        }
+        
+        let header_size = std::mem::size_of::<TensorHeader>();
+        let total_size = header_size + data_bytes;
+        let data_start = SLOTS_OFFSET + (MAX_WORKERS * SLOT_SIZE);
+        
+        if data_start + total_size > self.size {
+            return Err(VortexError::ShmFailure { reason: "SHM overflow".to_string() });
+        }
+        
+        let header_ptr = unsafe { self.base.add(data_start) } as *mut TensorHeader;
+        let header = unsafe { &mut *header_ptr };
+        
+        header.magic = TENSOR_MAGIC;
+        header.dtype_code = dtype_code;
+        header.dtype_bits = dtype_bits;
+        header.dtype_lanes = dtype_lanes;
+        header.device_type = device_type;
+        header.device_id = device_id;
+        header.ndim = shape.len() as u8;
+        header.data_bytes = data_bytes as u64;
+        header.data_offset = (data_start + header_size) as u64;
+        
+        for (i, &dim) in shape.iter().enumerate() {
+            header.shape[i] = dim;
+        }
+        
+        header.reserved2 = [0; 16];
+        
+        Ok(data_start)
+    }
+    
+    pub fn get_tensor_header(&self, offset: usize) -> Option<&TensorHeader> {
+        if offset + std::mem::size_of::<TensorHeader>() > self.size {
+            return None;
+        }
+        let header = unsafe { &*(self.base.add(offset) as *const TensorHeader) };
+        if header.magic != TENSOR_MAGIC { return None; }
+        Some(header)
+    }
+    
+    pub fn get_tensor_data(&self, header: &TensorHeader) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                self.base.add(header.data_offset as usize),
+                header.data_bytes as usize,
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+mod dlpack_tests {
+    use super::*;
+
+    #[test]
+    fn test_tensor_header_size() {
+        assert_eq!(std::mem::size_of::<TensorHeader>(), 144);
+    }
+
+    #[test]
+    fn test_tensor_ops() {
+        use std::sync::atomic::{AtomicU32, AtomicU64};
+        
+        let mut buffer = vec![0u8; 1_000_000];
+        let base = buffer.as_mut_ptr();
+        let mut memory = SharedMemory { base, size: 1_000_000, fd: -1 };
+        
+        unsafe {
+            let header = &mut *(base as *mut ShmHeader);
+            header.magic_bytes = MAGIC_BYTES;
+            header.version = 1;
+            header.flags = AtomicU32::new(0);
+            header.clock_tick = AtomicU64::new(0);
+        }
+        
+        let shape = vec![4, 64, 64];
+        let offset = memory.allocate_tensor(2, 32, 1, 1, 0, &shape, 4096).unwrap();
+        let header = memory.get_tensor_header(offset).unwrap();
+        
+        assert!(header.is_valid());
+        assert_eq!(header.ndim, 3);
+        assert_eq!(header.shape[0], 4);
+        assert_eq!(header.shape[1], 64);
+        assert_eq!(header.dtype_code, 2);
+    }
+}

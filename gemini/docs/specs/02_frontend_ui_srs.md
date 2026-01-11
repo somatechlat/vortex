@@ -7,6 +7,8 @@
 
 ---
 
+> **Policy**: Development must mirror production behavior; only local resource limits may differ.
+
 ## 1. Introduction
 
 ### 1.1 Purpose
@@ -19,6 +21,7 @@ The Frontend UI is the primary interaction layer for the VORTEX system.
 *   **Signal Routing**: Connecting units to specific lanes on the Signal Bus.
 *   **Cinematic Rendering**: 60fps WebGL background visualization.
 *   **Collaboration**: Real-time sync of Rack state via Yjs.
+*   **Human Approval UX**: Explicit review and approval of sensitive steps.
 
 ### 1.3 Definitions
 | Term | Definition |
@@ -29,6 +32,8 @@ The Frontend UI is the primary interaction layer for the VORTEX system.
 | **Tap** | A connection mapping `(UnitID, InputPort) -> BusLaneID`. |
 | **Rune** | Svelte 5's reactivity primitive (`$state`). |
 | **CRDT** | Conflict-free Replicated Data Type (Yjs). |
+| **Approval Gate** | A UI-visible step requiring human approval before execution. |
+| **Review Panel** | A sidebar view that summarizes changes and policy triggers. |
 
 ---
 
@@ -42,6 +47,8 @@ The Frontend UI is a Single Page Application (SPA) served by the Rust Host. Unli
 *   **F-02: Signal Bus Logic**: Validating data types on Bus Lanes.
 *   **F-03: Cinematic Renderer**: Generating the dynamic background bloom.
 *   **F-04: Collaborative Sync**: Syncing the Rack Order and Bus Taps.
+*   **F-05: Approval UX**: Rendering approval gates and review flows.
+*   **F-06: Agentic Flow Designer**: Generating full racks from natural language using MCP tool metadata.
 
 ### 2.3 User Classes
 *   **Creator**: Focused on the Flow and Output.
@@ -88,6 +95,28 @@ The Frontend UI is a Single Page Application (SPA) served by the Rust Host. Unli
     4.  Render to full-screen `<canvas>` at `z-index: -1`.
 *   **Outputs**: A "breathing" background that reflects the generation.
 
+#### 3.2.4 [F-05] Approval Gate UX
+*   **Description**: Presenting human approval steps in the Rack and Sidebar.
+*   **Inputs**: `ApprovalRequired` event from Core, `ApprovalMetadata`.
+*   **Processing**:
+    1.  Insert an **Approval Gate Blade** into the Rack at the relevant position.
+    2.  Populate the Review Panel with:
+        *   Tool name and version
+        *   Parameter diff (before/after)
+        *   Risk flags (cost, external side effects, data access)
+    3.  Require explicit Approve/Reject action before the Run resumes.
+*   **Outputs**: `approval.decision` event to Core.
+
+#### 3.2.5 [F-06] Agentic Flow Designer
+*   **Description**: The Kernel AI generates a complete rack from user intent and tool metadata.
+*   **Inputs**: Natural language intent, MCP tool metadata, policy constraints.
+*   **Processing**:
+    1.  Interpret intent and derive required tool types.
+    2.  Select tools based on availability and compatibility.
+    3.  Build a full rack with validated connections.
+    4.  Generate a rationale for each tool selection.
+*   **Outputs**: Rack insertion event + rationale payload.
+
 ### 3.2 Non-Functional Requirements
 
 #### 3.3.1 Performance
@@ -97,6 +126,7 @@ The Frontend UI is a Single Page Application (SPA) served by the Rust Host. Unli
 #### 3.3.2 Accessibility
 *   **ACC-01**: Rack Units shall be navigable via Up/Down Arrow keys.
 *   **ACC-02**: Bus Lanes shall be selectable via Number keys (1-8).
+*   **ACC-03**: Approval actions shall be keyboard accessible (A=Approve, R=Reject).
 
 ---
 
@@ -119,7 +149,20 @@ interface RackUnit {
   // Runtime
   $status: "IDLE" | "RUNNING" | "ERROR";
   $progress: number;
+  requires_approval?: boolean;
 }
+
+#### 3.4.3 Approval Metadata (TypeScript)
+```typescript
+interface ApprovalMetadata {
+  approval_id: string;
+  node_id: string;
+  tool_name: string;
+  tool_version: string;
+  reason_flags: string[]; // ["EXTERNAL_IO", "HIGH_COST", "DATA_ACCESS"]
+  param_diff: Record<string, { before: unknown; after: unknown }>;
+}
+```
 ```
 
 #### 3.4.2 Signal Bus State

@@ -59,6 +59,10 @@ pub enum VortexError {
     #[error("SYS-003 VersionMismatch: Expected {expected}, got {actual}")]
     VersionMismatch { expected: u32, actual: u32 },
 
+    /// SYS-004: IPC failure
+    #[error("SYS-004 IpcFailure: {reason}")]
+    IpcFailure { reason: String },
+
     // === Database Errors ===
     
     #[error("Database error: {0}")]
@@ -102,6 +106,7 @@ impl VortexError {
             VortexError::ShmFailure { .. } => "SYS-001",
             VortexError::BindError { .. } => "SYS-002",
             VortexError::VersionMismatch { .. } => "SYS-003",
+            VortexError::IpcFailure { .. } => "SYS-004",
             VortexError::Database(_) => "DB-001",
             VortexError::Io(_) => "IO-001",
             VortexError::Json(_) => "JSON-001",

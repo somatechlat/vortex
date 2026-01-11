@@ -1,3 +1,11 @@
+[package]
+name = "vortex-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Core engine for VORTEX-GEN 3.0"
+
 [dependencies]
 vortex-protocol = { path = "../vortex-protocol" }
 vortex-telemetry = { path = "../vortex-telemetry" }
@@ -13,10 +21,13 @@ serde_json.workspace = true
 # Hashing
 sha2.workspace = true
 
-# **ADD: Salsa for Incremental Computation**
+# Incremental Computation
 salsa.workspace = true
 
-# Database - Enterprise ORM
+# Protobuf
+prost.workspace = true
+
+# Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "macros", "json", "chrono", "uuid"] }
 sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"] }
 
@@ -26,6 +37,11 @@ libc = "0.2"
 
 # Shared Memory
 memmap2.workspace = true
+
+# DLPack for Zero-Copy Tensors
+dlpack-sys.workspace = true
+ndarray.workspace = true
+ndarray-rand.workspace = true
 
 # Concurrency
 dashmap.workspace = true

@@ -106,7 +106,56 @@ sequenceDiagram
     API->>UI: WS: execution.complete
 ```
 
-### 2.2 Real-time Collaboration Flow
+### 2.2 Human Approval (HITL) Flow
+
+```mermaid
+sequenceDiagram
+    participant UI as Frontend
+    participant API as HTTP API
+    participant Core as Core Engine
+    participant Policy as Policy Engine
+
+    UI->>API: POST /api/runs/{id}/start
+    API->>Core: StartRun
+    Core->>Policy: Evaluate(run)
+    Policy-->>Core: ApprovalRequired(node_id, metadata)
+    Core->>API: approval.required
+    API->>UI: WS: approval.required
+    UI->>API: POST /api/approvals/{approval_id}/decision {approve|reject}
+    API->>Core: ApprovalDecision
+    Core-->>API: approval.resolved
+    API-->>UI: WS: approval.resolved
+```
+
+### 2.3 Cluster Execution Flow (CPU Control Plane + GPU Workers)
+
+```mermaid
+sequenceDiagram
+    participant UI as Frontend
+    participant API as HTTP API
+    participant Core as Core Engine (CPU)
+    participant Policy as OPA
+    participant AuthZ as SpiceDB
+    participant Broker as Worker Registry
+    participant GPUW as Remote GPU Worker
+    participant SHM as Shared Memory (local to GPU node)
+
+    UI->>API: POST /api/graph/{id}/execute
+    API->>Core: ExecuteGraphCommand
+    Core->>Policy: Evaluate(run)
+    Policy-->>Core: allow/deny
+    Core->>AuthZ: Check execute permission
+    AuthZ-->>Core: allow/deny
+    Core->>Broker: Select worker by capability
+    Broker-->>Core: worker_id, endpoint, capacity
+    Core->>GPUW: JobSubmit (secure transport)
+    GPUW->>SHM: map input tensors (node-local SHM)
+    GPUW-->>Core: JobResult (secure transport)
+    Core-->>API: progress + completion events
+    API-->>UI: WS updates
+```
+
+### 2.4 Real-time Collaboration Flow
 
 ```mermaid
 sequenceDiagram
@@ -138,7 +187,7 @@ sequenceDiagram
     Server->>YjsB: Merged state
 ```
 
-### 2.3 Zero-Copy Tensor Flow
+### 2.5 Zero-Copy Tensor Flow
 
 ```mermaid
 sequenceDiagram
@@ -184,6 +233,13 @@ sequenceDiagram
 | Request | JSON | `{ graph_id: string, options?: ExecutionOptions }` |
 | Response | JSON | `{ execution_id: string, status: "queued" }` |
 
+**POST /api/approvals/{approval_id}/decision**
+
+| Direction | Format | Content |
+|-----------|--------|---------|
+| Request | JSON | `{ decision: "approve" | "reject", reason?: string }` |
+| Response | JSON | `{ approval_id: string, status: "resolved" }` |
+
 **WebSocket Messages**
 
 | Direction | Type | Payload |
@@ -191,6 +247,8 @@ sequenceDiagram
 | Server→Client | `execution.progress` | `{ node_id, progress: 0-100 }` |
 | Server→Client | `execution.complete` | `{ execution_id, outputs }` |
 | Server→Client | `execution.error` | `{ node_id, error }` |
+| Server→Client | `approval.required` | `{ approval_id, node_id, metadata }` |
+| Server→Client | `approval.resolved` | `{ approval_id, decision }` |
 | Client→Server | `graph.update` | `{ mutations: Mutation[] }` |
 | Server→Client | `graph.sync` | `{ graph: GraphDSL }` |
 

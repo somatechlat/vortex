@@ -346,7 +346,7 @@ impl Default for ApiConfig {
 //                    FEATURE FLAGS
 // ═══════════════════════════════════════════════════════════════
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeatureFlags {
     pub debug_panel: bool,
     pub admin_tools: bool,
@@ -432,7 +432,7 @@ impl Default for ResourceLimits {
 //                    LOGGING CONFIG
 // ═══════════════════════════════════════════════════════════════
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LoggingConfig {
     /// Log level
     pub level: LogLevel,
@@ -631,9 +631,9 @@ impl ConfigBuilder {
     pub fn build(self) -> Result<VortexConfig, ConfigError> {
         let (features, resources, logging) = match self.mode {
             DeploymentMode::Sandbox => (
-                self.features.unwrap_or_else(FeatureFlags::sandbox),
+                self.features.unwrap_or_else(FeatureFlags::live),
                 self.resources.unwrap_or_else(ResourceLimits::sandbox),
-                self.logging.unwrap_or_else(LoggingConfig::sandbox),
+                self.logging.unwrap_or_else(LoggingConfig::live),
             ),
             DeploymentMode::Live => (
                 self.features.unwrap_or_else(FeatureFlags::live),
@@ -720,6 +720,22 @@ impl VortexConfig {
                 "min_connections cannot exceed max_connections".to_string()
             ));
         }
+
+        // Enforce production behavior in non-live modes; only resource limits may differ.
+        if self.mode == DeploymentMode::Sandbox {
+            let live_features = FeatureFlags::live();
+            let live_logging = LoggingConfig::live();
+            if self.features != live_features {
+                return Err(ConfigError::Validation(
+                    "sandbox mode must mirror production feature flags".to_string()
+                ));
+            }
+            if self.logging != live_logging {
+                return Err(ConfigError::Validation(
+                    "sandbox mode must mirror production logging".to_string()
+                ));
+            }
+        }
         
         // Validate trace sampling
         if !(0.0..=1.0).contains(&self.logging.trace_sampling) {
@@ -778,9 +794,9 @@ mod tests {
     fn test_sandbox_config() {
         let config = ConfigBuilder::sandbox().build().unwrap();
         assert!(config.mode.is_sandbox());
-        assert!(config.features.debug_panel);
-        assert!(!config.features.billing);
-        assert_eq!(config.logging.level, LogLevel::Debug);
+        assert!(!config.features.debug_panel);
+        assert!(config.features.billing);
+        assert_eq!(config.logging.level, LogLevel::Error);
     }
     
     #[test]

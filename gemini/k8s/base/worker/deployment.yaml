@@ -43,7 +43,7 @@ spec:
               cpu: "100m"
       containers:
         - name: worker
-          image: vortex-worker:latest
+          image: vortex-worker
           imagePullPolicy: Never
           ports:
             - name: metrics

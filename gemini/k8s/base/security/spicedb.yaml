@@ -20,7 +20,7 @@ spec:
         image: quay.io/authzed/spicedb:v1.29.0
         args:
           - "serve"
-          - "--grpc-preshared-key=vortex-dev-key"
+          - "--grpc-preshared-key=$(SPICEDB_PRESHARED_KEY)"
           - "--http-enabled=true"
           - "--datastore-engine=memory"
         ports:
@@ -51,6 +51,12 @@ spec:
           periodSeconds: 30
           timeoutSeconds: 5
           failureThreshold: 3
+        env:
+          - name: SPICEDB_PRESHARED_KEY
+            valueFrom:
+              secretKeyRef:
+                name: spicedb-preshared-key
+                key: key
 ---
 apiVersion: v1
 kind: Service

@@ -7,6 +7,8 @@
 
 ---
 
+> **Policy**: Development must mirror production behavior; only local resource limits may differ.
+
 ## 1. Introduction
 
 ### 1.1 Purpose
@@ -19,6 +21,8 @@ The Core Engine is responsible for translating user intent (Graph DSL) into mach
 *   **Execution Planning**: Linearizing the DAG via Kahn's Algorithm.
 *   **Incremental Caching**: Hashing nodes to skip redundant comparisons.
 *   **Resource Arbitration**: Predicting and managing GPU VRAM usage.
+*   **Policy Enforcement**: Blocking disallowed runs and enforcing approval gates.
+*   **Template Lifecycle**: Validating and executing versioned templates.
 
 ### 1.3 Definitions, Acronyms, and Abbreviations
 | Term | Definition |
@@ -82,6 +86,8 @@ The Core Engine acts as the "Brain" of the Centaur architecture. It receives JSO
 *   **F-02: Salsa Caching Engine**: Managing state and minimizing re-compute.
 *   **F-03: Memory Arbiter**: Predicting costs and handling evictions.
 *   **F-04: Reliability Supervisor**: Handling panics and worker failures.
+*   **F-05: Approval Gate Controller**: Pausing execution for human approval.
+*   **F-06: Template Integrity**: Validating template schema and dependencies.
 
 ### 2.3 User Classes and Characteristics
 *   **Backend Developer**: Interfaces with the Rust structs and traits.
@@ -137,6 +143,27 @@ The Core Engine acts as the "Brain" of the Centaur architecture. It receives JSO
         *   Evict Tensors until `PredictedPeak < Limit`.
 *   **Outputs**: A sequence of `FreeTensor` commands prepended to the Execution Plan.
 
+#### 3.2.4 [F-05] Approval Gate Enforcement
+*   **Description**: Pausing execution at explicit approval nodes until a human approves.
+*   **Inputs**: `ExecutionPlan`, `ApprovalPolicy`, `UserRole`.
+*   **Processing**:
+    1.  Identify nodes tagged `requires_approval = true`.
+    2.  Before dispatch, emit `ApprovalRequired` with diff metadata.
+    3.  Block scheduler for that node until approval is granted or rejected.
+    4.  On rejection, mark Run as `FAILED_APPROVAL` and persist state.
+*   **Outputs**: `ApprovalRecord` and `ExecutionEvent` updates.
+
+#### 3.2.5 [F-06] Template Validation
+*   **Description**: Ensuring template integrity before execution.
+*   **Inputs**: `Template` payload, `ToolRegistry` metadata.
+*   **Processing**:
+    1.  Validate template schema version.
+    2.  Verify tool availability and version constraints.
+    3.  Validate parameter types and ranges.
+    4.  Ensure required approval nodes exist for policy-triggering steps.
+*   **Outputs**: `TemplateValidationReport`.
+
+
 ### 3.3 Non-Functional Requirements (NFR)
 
 #### 3.3.1 Performance Efficiency
@@ -154,6 +181,7 @@ The Core Engine acts as the "Brain" of the Centaur architecture. It receives JSO
 *   **NFR-MNT-01 (Code Quality)**: No Rust function shall exceed a Cyclomatic Complexity of 20 (enforced by `clippy`).
 *   **NFR-MNT-02 (Documentation)**: Public API structs must have `///` doc comments covering all fields.
 *   **NFR-MNT-03 (Error Codes)**: All logic errors must return a variant of `VortexError` enum, not `String`.
+*   **NFR-MNT-04 (Auditability)**: All approval decisions must be traceable from run metadata.
 
 ### 3.4 Data Dictionary & Schemas
 
@@ -195,6 +223,19 @@ CREATE TABLE runs (
     created_at INTEGER NOT NULL,  -- Unix Timestamp (ms)
     completed_at INTEGER,
     error_json TEXT               -- Nullable JSON
+);
+
+-- Approval events for human-in-the-loop governance
+CREATE TABLE approvals (
+    id TEXT PRIMARY KEY NOT NULL,      -- UUID v4
+    run_id TEXT NOT NULL REFERENCES runs(id),
+    node_id TEXT NOT NULL,             -- Graph node awaiting approval
+    requested_by TEXT NOT NULL,        -- User or agent id
+    approved_by TEXT,                  -- Nullable until approved
+    decision TEXT CHECK(decision IN ('PENDING','APPROVED','REJECTED')),
+    reason TEXT,                       -- Optional human reason
+    created_at INTEGER NOT NULL,       -- Unix Timestamp (ms)
+    decided_at INTEGER                 -- Nullable until decision
 );
 
 -- Granular step metrics for performance analysis

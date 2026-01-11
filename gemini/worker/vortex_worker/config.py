@@ -9,15 +9,18 @@ def parse_slot_id(value: str) -> int:
     """Parse slot ID from env var - handles pod names like 'worker-abc-123'."""
     if not value:
         return 0
-    # Direct integer
     if value.isdigit():
         return int(value)
-    # Extract numeric suffix from pod name
     match = re.search(r"(\d+)$", value)
     if match:
-        return int(match.group(1)) % 256  # Keep in byte range
-    # Hash-based fallback for non-numeric pod names
+        return int(match.group(1)) % 256
     return hash(value) % 256
+
+
+# Centralized constants
+SHM_SIZE_BYTES = 64 * 1024 * 1024  # 64 MB
+HEARTBEAT_INTERVAL_MS = 1000
+JOB_TIMEOUT_MS = 1000
 
 
 @dataclass
@@ -36,6 +39,6 @@ class WorkerConfig:
         return cls(
             slot_id=parse_slot_id(raw_slot),
             shm_name=os.getenv("VORTEX_SHM_NAME", "/vortex-shm"),
-            ipc_path=os.getenv("VORTEX_IPC_PATH", "/tmp/vortex.sock"),  # nosec B108
+            ipc_path=os.getenv("VORTEX_IPC_PATH", "/tmp/vortex.sock"),
             debug=os.getenv("VORTEX_DEBUG", "").lower() in ("1", "true"),
         )

@@ -11,17 +11,19 @@
 
 ### 1.1 What is the VORTEX Workspace?
 
-The **VORTEX Workspace** is the complete user environment for creating, editing, and executing node-based AI workflows. It consists of:
+The **VORTEX Workspace** is the complete user environment for creating, editing, and executing rack-based AI workflows. It consists of:
 
 | Component | Type | Purpose |
 |-----------|------|---------|
-| **Canvas** | Visual | Infinite 2D space for node placement |
-| **Node Palette** | Tool | Library of available operations |
-| **Property Panel** | Tool | Node parameter editing |
+| **Rack** | Visual | Vertical stack of Units (no infinite canvas) |
+| **Signal Bus** | Visual | Unified data lanes for routing |
+| **Unit Palette** | Tool | Library of available operations |
+| **Property Panel** | Tool | Unit parameter editing |
 | **Queue Panel** | Tool | Execution monitoring |
+| **Review Panel** | Tool | Human approval and audit review |
+| **Template Library** | Tool | Saved and AI-generated templates |
 | **Gallery** | Tool | Output viewing |
 | **Toolbar** | Tool | Quick actions |
-| **Minimap** | Navigation | Overview and navigation |
 
 ---
 
@@ -40,10 +42,10 @@ The **VORTEX Workspace** is the complete user environment for creating, editing,
 │                                                                         │
 │  ┌─────────┬─────────────────────────────────────────────────────────┐  │
 │  │         │                                                         │  │
-│  │  NODE   │                    CANVAS                               │  │
+│  │  UNIT   │                    RACK                                │  │
 │  │ PALETTE │                                                         │  │
 │  │         │   ┌─────────┐            ┌─────────┐                    │  │
-│  │ 📂 Load │   │  CLIP   │───[cond]──▶│ KSamp   │                    │  │
+│  │ 📂 Load │   │  CLIP   │            │ KSamp   │                    │  │
 │  │ 📂 Cond │   │  Encode │            │  ler    │                    │  │
 │  │ 📂 Samp │   └─────────┘            └────┬────┘                    │  │
 │  │ 📂 Imag │                               │                         │  │
@@ -54,11 +56,11 @@ The **VORTEX Workspace** is the complete user environment for creating, editing,
 │  │  PANEL  │                          │                              │  │
 │  │         │                          ▼                              │  │
 │  │ Steps:  │              ┌───────────────────┐      ┌────────────┐  │  │
-│  │ [===20] │              │   Save Image      │      │  MINIMAP   │  │  │
-│  │         │              └───────────────────┘      │  ┌──┐      │  │  │
-│  │ CFG:    │                                         │  │▫▫│      │  │  │
-│  │ [==7.0] │                                         │  └──┘      │  │  │
-│  │         │                                         └────────────┘  │  │
+│  │ [===20] │              │   Save Image      │      │  REVIEW    │  │  │
+│  │         │              └───────────────────┘      │  PANEL     │  │  │
+│  │ CFG:    │                                         │  ┌──┐      │  │  │
+│  │ [==7.0] │                                         │  │OK│      │  │  │
+│  │         │                                         │  └──┘      │  │  │
 │  └─────────┴─────────────────────────────────────────────────────────┘  │
 │                                                                         │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
@@ -86,7 +88,7 @@ The **VORTEX Workspace** is the complete user environment for creating, editing,
 | **Settings** | ⚙️ | Ctrl+, | Open settings |
 | **Gallery** | 🖼️ | G | View outputs |
 
-### 3.2 Node Palette (Why It Exists)
+### 3.2 Unit Palette (Why It Exists)
 
 **Purpose**: Enable users to discover and add nodes to their workflow.
 
@@ -134,16 +136,49 @@ The **VORTEX Workspace** is the complete user environment for creating, editing,
 | **Metadata** | Workflow info | Reproducibility |
 | **Actions** | Download, delete, etc. | Asset management |
 
-### 3.6 Minimap (Why It Exists)
+### 3.6 Rack Overview (Why It Exists)
 
-**Purpose**: Navigate large workflows efficiently.
+**Purpose**: Navigate long racks efficiently without an infinite canvas.
 
 | Feature | Description | Rationale |
 |---------|-------------|-----------|
-| **Overview** | Scaled view of all nodes | Context awareness |
-| **Viewport rect** | Current view indicator | Orientation |
-| **Click nav** | Jump to location | Fast navigation |
-| **Drag nav** | Pan the viewport | Fluid movement |
+| **Overview** | Scaled view of the rack | Context awareness |
+| **Viewport bar** | Current view indicator | Orientation |
+| **Click nav** | Jump to position | Fast navigation |
+| **Drag nav** | Scroll the rack | Fluid movement |
+
+### 3.7 Review Panel (Human-in-the-Loop)
+
+**Purpose**: Provide mandatory approvals and audit transparency.
+
+| Feature | Description | Rationale |
+|---------|-------------|-----------|
+| **Approval summary** | Tool name, version, risk flags | Clear reason for block |
+| **Parameter diff** | Before/after values | Prevent silent changes |
+| **Decision log** | Approver, timestamp, reason | Audit compliance |
+| **Reject workflow** | Reject with mandatory reason | Responsible governance |
+
+### 3.8 Template Library (Why It Exists)
+
+**Purpose**: Store and reuse AI-generated or human-authored templates.
+
+| Feature | Description | Rationale |
+|---------|-------------|-----------|
+| **Template cards** | Thumbnail + summary | Fast discovery |
+| **Version history** | Revisions with diff | Safe iteration |
+| **Fork** | Create variant templates | Reuse without loss |
+| **Run with params** | Launch with inputs | Single-click execution |
+
+### 3.9 Agentic Flow Designer (Why It Exists)
+
+**Purpose**: Allow the agent to generate a full rack from intent using MCP tool metadata.
+
+| Feature | Description | Rationale |
+|---------|-------------|-----------|
+| **Intent prompt** | Natural language command to the agent | Fast flow creation |
+| **Tool rationale** | Explain why each tool is used | Expert transparency |
+| **Editable rack** | User can modify any generated unit | Human control |
+| **Policy preview** | Show approval gates before run | Governance clarity |
 
 ---
 

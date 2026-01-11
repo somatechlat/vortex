@@ -45,7 +45,7 @@ spec:
               cpu: "100m"
       containers:
         - name: core
-          image: vortex-core:latest
+          image: vortex-core
           imagePullPolicy: Never
           ports:
             - name: http
@@ -103,4 +103,3 @@ spec:
             sizeLimit: 2Gi
         - name: ipc
           emptyDir: {}
-

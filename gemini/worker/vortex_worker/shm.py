@@ -1,43 +1,30 @@
-"""Shared Memory Arena Module.
-
-Provides Python bindings to the VORTEX shared memory arena,
-matching the Rust ShmHeader and WorkerSlot structures exactly.
-"""
+"""Shared Memory Arena Module with DLPack Support - FIXED for Rust compatibility."""
 
 import ctypes
 import mmap
 import time
+from typing import Optional
+
+try:
+    import torch
+
+    DLPACK_AVAILABLE = True
+except ImportError:
+    DLPACK_AVAILABLE = False
+    print("WARNING: torch not available")
 
 # ═══════════════════════════════════════════════════════════════
-#                    CTYPES STRUCTURES
-# Must match Rust structs exactly!
+#                    CTYPES STRUCTURES (Rust-compatible)
 # ═══════════════════════════════════════════════════════════════
 
 
 class WorkerSlot(ctypes.Structure):
-    """Worker slot in shared memory (64 bytes).
-
-    Must match Rust:
-    ```
-    #[repr(C)]
-    pub struct WorkerSlot {
-        pub pid: i32,
-        pub status: u32,
-        pub last_heartbeat: u64,
-        pub current_job: u64,
-        pub progress: f32,
-        pub reserved: [u8; 36],
-    }
-    ```
-    """
-
     _fields_ = [
-        ("pid", ctypes.c_int32),  # Process ID
-        ("status", ctypes.c_uint32),  # WorkerStatus enum
-        ("last_heartbeat", ctypes.c_uint64),  # Unix timestamp ms
-        ("current_job", ctypes.c_uint64),  # Current job ID
-        ("progress", ctypes.c_float),  # 0.0 - 1.0
-        ("reserved", ctypes.c_uint8 * 36),  # Padding to 64 bytes
+        ("pid", ctypes.c_uint32),
+        ("status", ctypes.c_uint32),
+        ("current_job_id", ctypes.c_uint64),
+        ("last_heartbeat", ctypes.c_uint64),
+        ("padding", ctypes.c_uint8 * 40),
     ]
 
 
@@ -45,120 +32,327 @@ assert ctypes.sizeof(WorkerSlot) == 64, "WorkerSlot must be 64 bytes"
 
 
 class ShmHeader(ctypes.Structure):
-    """Shared memory header (16384 bytes total with slots).
-
-    Layout:
-    - Header: 64 bytes
-    - Worker slots: 256 * 64 = 16320 bytes
-    - Tensor arena starts at offset 16384
-    """
-
     MAX_WORKERS = 256
-    MAGIC = 0x5654_5833_0000_0001  # "VTX3" + version
+    MAGIC = 0x5654_5833_0000_0001
 
     _fields_ = [
         ("magic", ctypes.c_uint64),
         ("version", ctypes.c_uint32),
-        ("num_workers", ctypes.c_uint32),
-        ("arena_size", ctypes.c_uint64),
-        ("arena_used", ctypes.c_uint64),
-        ("lock", ctypes.c_uint32),
-        ("reserved", ctypes.c_uint8 * 28),
-        ("slots", WorkerSlot * MAX_WORKERS),
+        ("flags", ctypes.c_uint32),
+        ("clock_tick", ctypes.c_uint64),
+        ("reserved", ctypes.c_uint8 * 40),
     ]
 
 
-# ═══════════════════════════════════════════════════════════════
-#                    SHM ARENA CLASS
-# ═══════════════════════════════════════════════════════════════
+assert ctypes.sizeof(ShmHeader) == 64
+
+
+class TensorHeader(ctypes.Structure):
+    _pack_ = 64
+    _fields_ = [
+        ("magic", ctypes.c_uint64),
+        ("dtype_code", ctypes.c_uint8),
+        ("dtype_bits", ctypes.c_uint8),
+        ("dtype_lanes", ctypes.c_uint8),
+        ("reserved1", ctypes.c_uint8),
+        ("device_type", ctypes.c_uint8),
+        ("device_id", ctypes.c_uint16),
+        ("ndim", ctypes.c_uint8),
+        ("shape", ctypes.c_int64 * 8),
+        ("data_bytes", ctypes.c_uint64),
+        ("data_offset", ctypes.c_uint64),
+        ("reserved2", ctypes.c_uint8 * 16),
+    ]
+
+
+TENSOR_MAGIC = 0x5453_4552_4F56_5458
+# Verify size - Python struct should match Rust layout
+assert ctypes.sizeof(TensorHeader) >= 112, f"TensorHeader too small: {ctypes.sizeof(TensorHeader)}"
 
 
 class ShmArena:
-    """Python interface to the VORTEX shared memory arena."""
+    SHM_NAME = "/vortex-shm"
+    SLOTS_OFFSET = 0x40
+    TENSOR_DATA_OFFSET = 0x4000
 
-    def __init__(self, name: str, size: int = 0):
-        """Open or create shared memory arena.
-
-        Args:
-            name: POSIX shared memory name (e.g., "/vortex-shm")
-            size: Size in bytes (0 = open existing)
-        """
+    def __init__(self, name: Optional[str] = None, size: int = 0):
         import posix_ipc
 
-        self.name = name
+        self.name = name or self.SHM_NAME
         self._created = False
 
-        # Open or create
         if size > 0:
             self.shm = posix_ipc.SharedMemory(
-                name,
+                self.name,
                 posix_ipc.O_CREAT | posix_ipc.O_RDWR,
                 size=size,
             )
             self._created = True
         else:
-            self.shm = posix_ipc.SharedMemory(name, posix_ipc.O_RDWR)
+            self.shm = posix_ipc.SharedMemory(self.name, posix_ipc.O_RDWR)
 
-        # Memory map
         self.mm = mmap.mmap(self.shm.fd, self.shm.size)
-
-        # Cast to header structure
         self.header = ShmHeader.from_buffer(self.mm)
 
-        # Initialize if newly created (magic will be 0)
         if self._created and self.header.magic == 0:
             self.header.magic = ShmHeader.MAGIC
             self.header.version = 1
-            self.header.num_workers = 0
-            self.header.arena_size = size
-            self.header.arena_used = 0
-            self.header.lock = 0
+            self.header.flags = 0
+            self.header.clock_tick = 0
+            self.header.reserved = bytes(40)
 
-        # Validate magic
         if self.header.magic != ShmHeader.MAGIC:
             raise RuntimeError(
-                f"Invalid SHM magic: {self.header.magic:#x}, "
-                f"expected {ShmHeader.MAGIC:#x}"
+                f"Invalid SHM magic: {self.header.magic}, expected {ShmHeader.MAGIC}"
             )
 
+        if not DLPACK_AVAILABLE:
+            print("WARNING: DLPack not available")
+
     def close(self) -> None:
-        """Close the shared memory mapping."""
         self.mm.close()
         self.shm.close_fd()
 
+    def _get_slot_offset(self, slot_id: int) -> int:
+        if slot_id >= ShmHeader.MAX_WORKERS:
+            raise ValueError(f"Slot ID {slot_id} exceeds max")
+        return self.SLOTS_OFFSET + (slot_id * ctypes.sizeof(WorkerSlot))
+
+    def _get_slot(self, slot_id: int) -> WorkerSlot:
+        offset = self._get_slot_offset(slot_id)
+        slot_bytes = self.mm[offset : offset + ctypes.sizeof(WorkerSlot)]
+        return WorkerSlot.from_buffer_copy(slot_bytes)
+
+    def _set_slot(self, slot_id: int, slot: WorkerSlot) -> None:
+        offset = self._get_slot_offset(slot_id)
+        slot_bytes = bytes(slot)
+        self.mm[offset : offset + len(slot_bytes)] = slot_bytes
+
     def register_worker(self, slot_id: int) -> None:
-        """Register this worker in the given slot."""
         import os
 
-        if slot_id >= ShmHeader.MAX_WORKERS:
-            raise ValueError(f"Slot ID {slot_id} exceeds max {ShmHeader.MAX_WORKERS}")
-
-        slot = self.header.slots[slot_id]
+        slot = self._get_slot(slot_id)
         slot.pid = os.getpid()
-        slot.status = 1  # BOOTING
+        slot.status = 1
+        slot.current_job_id = 0
         slot.last_heartbeat = int(time.time() * 1000)
-        slot.progress = 0.0
+        self._set_slot(slot_id, slot)
 
-    def set_status(self, slot_id: int, status: int) -> None:
-        """Set worker status.
-
-        Status values:
-        - 0: DEAD
-        - 1: BOOTING
-        - 2: IDLE
-        - 3: BUSY
-        - 4: ERROR
-        """
-        self.header.slots[slot_id].status = status
+    def set_worker_status(self, slot_id: int, status: int) -> None:
+        slot = self._get_slot(slot_id)
+        slot.status = status
+        self._set_slot(slot_id, slot)
 
     def update_heartbeat(self, slot_id: int) -> None:
-        """Update worker heartbeat timestamp."""
-        self.header.slots[slot_id].last_heartbeat = int(time.time() * 1000)
+        slot = self._get_slot(slot_id)
+        slot.last_heartbeat = int(time.time() * 1000)
+        self._set_slot(slot_id, slot)
 
-    def set_progress(self, slot_id: int, progress: float) -> None:
-        """Set worker job progress (0.0 - 1.0)."""
-        self.header.slots[slot_id].progress = max(0.0, min(1.0, progress))
+    def store_tensor(self, tensor) -> int:
+        if not DLPACK_AVAILABLE:
+            raise RuntimeError("DLPack not available")
 
-    def get_tensor_offset(self) -> int:
-        """Get the offset where tensor data begins."""
-        return ctypes.sizeof(ShmHeader)
+        import numpy as np
+
+        shape = list(tensor.shape)
+        dtype = tensor.dtype
+        device = tensor.device
+
+        data_size = tensor.element_size() * tensor.numel()
+        header_size = ctypes.sizeof(TensorHeader)
+        total_size = header_size + data_size
+
+        if not hasattr(self, "_alloc_ptr"):
+            self._alloc_ptr = self.TENSOR_DATA_OFFSET
+
+        current_offset = self._alloc_ptr
+        available = self.mm.size() - current_offset
+
+        if total_size > available:
+            raise RuntimeError(
+                f"SHM overflow: need {total_size}, available {available}"
+            )
+
+        header = TensorHeader()
+        header.magic = TENSOR_MAGIC
+
+        if dtype == torch.float32:
+            header.dtype_code = 2
+            header.dtype_bits = 32
+            header.dtype_lanes = 1
+        elif dtype == torch.float16:
+            header.dtype_code = 2
+            header.dtype_bits = 16
+            header.dtype_lanes = 1
+        elif dtype == torch.bfloat16:
+            header.dtype_code = 2
+            header.dtype_bits = 16
+            header.dtype_lanes = 1
+        elif dtype == torch.int32:
+            header.dtype_code = 1
+            header.dtype_bits = 32
+            header.dtype_lanes = 1
+        elif dtype == torch.int64:
+            header.dtype_code = 1
+            header.dtype_bits = 64
+            header.dtype_lanes = 1
+        elif dtype == torch.uint8:
+            header.dtype_code = 0
+            header.dtype_bits = 8
+            header.dtype_lanes = 1
+        else:
+            raise ValueError(f"Unsupported dtype: {dtype}")
+
+        if device.type == "cpu":
+            header.device_type = 1
+            header.device_id = 0
+        elif device.type == "cuda":
+            header.device_type = 2
+            header.device_id = device.index if device.index else 0
+        else:
+            raise ValueError(f"Unsupported device: {device.type}")
+
+        header.ndim = len(shape)
+        header.data_bytes = data_size
+        header.data_offset = current_offset + header_size
+
+        for i in range(8):
+            header.shape[i] = shape[i] if i < len(shape) else 0
+
+        header.reserved2 = bytes(16)
+
+        header_bytes = bytes(header)
+        self.mm[current_offset : current_offset + len(header_bytes)] = header_bytes
+
+        if device.type != "cpu":
+            tensor = tensor.cpu()
+
+        tensor_np = tensor.numpy()
+        tensor_data = tensor_np.tobytes()
+        self.mm[header.data_offset : header.data_offset + data_size] = tensor_data
+
+        self._alloc_ptr = current_offset + total_size
+
+        return current_offset
+
+    def load_tensor(self, header_offset: int):
+        if not DLPACK_AVAILABLE:
+            raise RuntimeError("DLPack not available")
+
+        import numpy as np
+
+        header_bytes = self.mm[
+            header_offset : header_offset + ctypes.sizeof(TensorHeader)
+        ]
+        header = TensorHeader.from_buffer_copy(header_bytes)
+
+        if header.magic != TENSOR_MAGIC:
+            raise RuntimeError(f"Invalid tensor magic: {hex(header.magic)}")
+
+        shape = tuple(header.shape[i] for i in range(header.ndim))
+
+        if header.dtype_code == 2 and header.dtype_bits == 32:
+            dtype = np.float32
+        elif header.dtype_code == 2 and header.dtype_bits == 16:
+            dtype = np.float16
+        elif header.dtype_code == 1 and header.dtype_bits == 32:
+            dtype = np.int32
+        elif header.dtype_code == 1 and header.dtype_bits == 64:
+            dtype = np.int64
+        elif header.dtype_code == 0 and header.dtype_bits == 8:
+            dtype = np.uint8
+        else:
+            raise ValueError(
+                f"Unsupported DLPack dtype: code={header.dtype_code}, bits={header.dtype_bits}"
+            )
+
+        data_bytes = self.mm[
+            header.data_offset : header.data_offset + header.data_bytes
+        ]
+        array = np.frombuffer(data_bytes, dtype=dtype).reshape(shape)
+        tensor = torch.from_numpy(array).clone()
+
+        return tensor
+
+    def get_tensor_info(self, header_offset: int) -> dict:
+        header_bytes = self.mm[
+            header_offset : header_offset + ctypes.sizeof(TensorHeader)
+        ]
+        header = TensorHeader.from_buffer_copy(header_bytes)
+
+        if header.magic != TENSOR_MAGIC:
+            raise RuntimeError("Invalid magic")
+
+        return {
+            "shape": tuple(header.shape[i] for i in range(header.ndim)),
+            "dtype_code": header.dtype_code,
+            "dtype_bits": header.dtype_bits,
+            "dtype_lanes": header.dtype_lanes,
+            "device_type": header.device_type,
+            "device_id": header.device_id,
+            "total_bytes": header.data_bytes,
+            "data_offset": header.data_offset,
+        }
+
+    def get_tensor_data(self, offset: int, shape: tuple, dtype: str) -> bytes:
+        header_bytes = self.mm[offset : offset + ctypes.sizeof(TensorHeader)]
+        header = TensorHeader.from_buffer_copy(header_bytes)
+
+        if header.magic != TENSOR_MAGIC:
+            raise RuntimeError("Invalid tensor magic")
+
+        data_offset = header.data_offset
+        data_size = header.data_bytes
+
+        return self.mm[data_offset : data_offset + data_size]
+
+    def get_tensor_data_mut(self, offset: int, size: int) -> memoryview:
+        return memoryview(self.mm)[offset : offset + size]
+
+    def allocate_tensor(
+        self,
+        dtype_code: int,
+        dtype_bits: int,
+        dtype_lanes: int,
+        device_type: int,
+        device_id: int,
+        shape: list,
+        data_bytes: int,
+    ) -> int:
+        header_size = ctypes.sizeof(TensorHeader)
+        total_size = header_size + data_bytes
+
+        if not hasattr(self, "_alloc_ptr"):
+            self._alloc_ptr = self.TENSOR_DATA_OFFSET
+
+        current_offset = self._alloc_ptr
+        available = self.mm.size() - current_offset
+
+        if total_size > available:
+            raise RuntimeError(
+                f"SHM overflow: need {total_size}, available {available}"
+            )
+
+        header = TensorHeader()
+        header.magic = TENSOR_MAGIC
+        header.dtype_code = dtype_code
+        header.dtype_bits = dtype_bits
+        header.dtype_lanes = dtype_lanes
+        header.device_type = device_type
+        header.device_id = device_id
+        header.ndim = len(shape)
+        header.data_bytes = data_bytes
+        header.data_offset = current_offset + header_size
+
+        for i, dim in enumerate(shape):
+            if i < 8:
+                header.shape[i] = dim
+
+        header.reserved2 = bytes(16)
+
+        header_bytes = bytes(header)
+        self.mm[current_offset : current_offset + len(header_bytes)] = header_bytes
+
+        self._alloc_ptr = current_offset + total_size
+
+        return current_offset

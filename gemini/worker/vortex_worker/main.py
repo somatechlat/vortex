@@ -1,20 +1,15 @@
-"""VORTEX Worker Entry Point.
-
-This module provides the main entry point for the VORTEX compute worker.
-The worker connects to the Rust host via Unix Domain Socket and processes
-compute jobs using the shared memory arena.
-
-Protocol: Protobuf over UDS with Big-Endian length prefix
-"""
+"""VORTEX Worker Entry Point - P2 Real Executors Implementation."""
 
 import logging
 import signal
 import sys
+import time
 from typing import NoReturn, Optional
 
-from .config import WorkerConfig
+from .config import WorkerConfig, SHM_SIZE_BYTES, HEARTBEAT_INTERVAL_MS, JOB_TIMEOUT_MS
 from .ipc import IPCSocket, Job, JobResult
 from .shm import ShmArena
+from .sandbox import enable_sandbox, validate_node_code, SecurityViolation
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +26,18 @@ def setup_logging(config: WorkerConfig) -> None:
 
 def main() -> NoReturn:
     """Main worker entry point."""
-    # Load configuration from environment
     config = WorkerConfig.from_env()
     setup_logging(config)
 
     logger.info(f"VORTEX Worker starting (slot={config.slot_id})")
 
-    # Setup signal handlers
+    # Enable security sandbox P3
+    try:
+        enable_sandbox()
+    except Exception as e:
+        logger.error(f"Failed to enable sandbox: {e}")
+        sys.exit(1)
+
     shutdown = False
 
     def handle_signal(signum: int, frame) -> None:
@@ -49,21 +49,17 @@ def main() -> NoReturn:
     signal.signal(signal.SIGINT, handle_signal)
 
     try:
-        # Connect/create shared memory arena
-        SHM_SIZE = 64 * 1024 * 1024  # 64 MB
+        SHM_SIZE = SHM_SIZE_BYTES
         try:
             shm = ShmArena(config.shm_name, size=SHM_SIZE)
             logger.info(f"Created SHM arena: {config.shm_name} ({SHM_SIZE} bytes)")
         except Exception:
-            # Try to open existing if create fails
             shm = ShmArena(config.shm_name)
             logger.info(f"Connected to existing SHM arena: {config.shm_name}")
 
-        # Register worker slot
         shm.register_worker(config.slot_id)
-        shm.set_status(config.slot_id, 2)  # IDLE
+        shm.set_worker_status(config.slot_id, 2)
 
-        # Try to connect to IPC socket
         ipc: Optional[IPCSocket] = None
         try:
             ipc = IPCSocket(config.ipc_path)
@@ -71,49 +67,38 @@ def main() -> NoReturn:
             logger.info(f"Connected to IPC socket: {config.ipc_path}")
         except FileNotFoundError:
             ipc = None
-            logger.warning(f"IPC socket not found: {config.ipc_path} - running in standalone mode")
+            logger.warning(f"IPC socket not found: {config.ipc_path} - standalone mode")
         except Exception as ipc_err:
             ipc = None
-            logger.warning(f"IPC connection failed: {ipc_err} - running in standalone mode")
+            logger.warning(f"IPC connection failed: {ipc_err} - standalone mode")
 
-        # Main event loop
         logger.info("Entering main event loop")
         while not shutdown:
-            # Update heartbeat
             shm.update_heartbeat(config.slot_id)
 
-            # If no IPC, just keep heartbeat alive
             if ipc is None:
-                import time
-                time.sleep(1)
+                time.sleep(HEARTBEAT_INTERVAL_MS / 1000)
                 continue
 
-            # Wait for job from host
-            job = ipc.receive(timeout_ms=1000)
+            job = ipc.receive(timeout_ms=JOB_TIMEOUT_MS)
 
             if job is None:
-                # No job, continue heartbeat polling
                 continue
 
             logger.info(f"Received job: {job.job_id} for node type: {job.node_type}")
 
-            # Mark as busy
-            shm.set_status(config.slot_id, 3)  # BUSY
+            shm.set_worker_status(config.slot_id, 3)
 
             try:
-                # Execute the job
                 result = execute_job(job, shm)
-                
-                # Send result back
                 ipc.send_result(result)
                 logger.info(f"Job completed: {job.job_id}")
-                
             except Exception as e:
                 logger.error(f"Job failed: {e}")
-                shm.set_status(config.slot_id, 4)  # ERROR
+                shm.set_worker_status(config.slot_id, 4)
                 ipc.send_error(job.job_id, str(e))
             finally:
-                shm.set_status(config.slot_id, 2)  # IDLE
+                shm.set_worker_status(config.slot_id, 2)
 
         logger.info("Worker shutdown complete")
 
@@ -125,46 +110,116 @@ def main() -> NoReturn:
 
 
 def execute_job(job: Job, shm: ShmArena) -> JobResult:
-    """Execute a compute job.
-    
-    This is the main execution entry point. It:
-    1. Looks up the executor for the node type
-    2. Loads input tensors from shared memory
-    3. Executes the operation
-    4. Writes output tensors to shared memory
-    5. Returns metrics and results
-    
-    Args:
-        job: Job request from host
-        shm: Shared memory arena for tensor data
-        
-    Returns:
-        JobResult with execution status and output references
-    """
+    """Execute a compute job using real executors."""
+    import json
+    from .executor import ExecutorRegistry, TensorHandle
+
     logger.info(f"Executing job: {job.job_id} (type: {job.node_type})")
-    
-    # In production, this would:
-    # 1. Look up executor from registry
-    # 2. Load inputs from SHM
-    # 3. Execute: result = executor.execute(job.params, inputs)
-    # 4. Allocate output in SHM
-    # 5. Serialize result to SHM
-    # 6. Return JobResult with output refs
-    
-    # For now, stub implementation
-    import time
-    time.sleep(0.1)  # Simulate work
-    
-    return JobResult(
-        job_id=job.job_id,
-        success=True,
-        outputs=[],  # Would contain tensor refs
-        metrics={
-            "execution_us": 100000,  # 100ms
-            "peak_vram_bytes": 0,
-            "tokens_processed": 0,
-        },
-    )
+
+    try:
+        params = {}
+        if job.params_json:
+            try:
+                params = json.loads(job.params_json)
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON params")
+                params = {}
+
+        inputs = {}
+        for name, input_spec in job.inputs.items():
+            if isinstance(input_spec, dict):
+                offset = input_spec.get("offset", 0)
+                shape = tuple(input_spec.get("shape", []))
+                dtype = input_spec.get("dtype", "float32")
+                device = input_spec.get("device", "cuda")
+
+                if offset == 0 and not shape:
+                    inputs[name] = TensorHandle(
+                        offset=0, shape=(), dtype=dtype, device=device
+                    )
+                else:
+                    inputs[name] = TensorHandle(
+                        offset=offset, shape=shape, dtype=dtype, device=device
+                    )
+            else:
+                logger.warning(f"Unexpected input format for {name}")
+
+        executor_cls = ExecutorRegistry.get(job.node_type)
+        if executor_cls is None:
+            return JobResult(
+                job_id=job.job_id,
+                success=False,
+                outputs=[],
+                error={
+                    "code": "EXECUTOR_NOT_FOUND",
+                    "message": f"No executor for {job.node_type}",
+                },
+            )
+
+        start_time = time.perf_counter_ns()
+        executor = executor_cls(shm)
+        result = executor.execute(inputs, params)
+        exec_time_us = (time.perf_counter_ns() - start_time) // 1000
+
+        outputs = []
+        for name, handle in result.outputs.items():
+            output_spec = {
+                "name": name,
+                "offset": handle.offset,
+                "dtype": handle.dtype,
+                "shape": list(handle.shape),
+                "device": handle.device,
+            }
+
+            if handle.offset > 0 and handle.shape:
+                try:
+                    tensor_info = shm.get_tensor_info(handle.offset)
+                    output_spec["size_bytes"] = tensor_info["total_bytes"]
+                except Exception:
+                    output_spec["size_bytes"] = 0
+
+            outputs.append(output_spec)
+
+        metrics = {
+            "execution_us": (
+                result.duration_us if result.duration_us > 0 else exec_time_us
+            ),
+            "peak_vram_bytes": result.peak_vram_mb * 1024 * 1024,
+        }
+
+        if result.success:
+            return JobResult(
+                job_id=job.job_id,
+                success=True,
+                outputs=outputs,
+                metrics=metrics,
+            )
+        else:
+            return JobResult(
+                job_id=job.job_id,
+                success=False,
+                outputs=[],
+                error={
+                    "code": "EXECUTION_ERROR",
+                    "message": result.error or "Unknown error",
+                    "traceback": "",
+                },
+                metrics=metrics,
+            )
+
+    except Exception as e:
+        logger.exception(f"Job execution failed: {e}")
+        return JobResult(
+            job_id=job.job_id,
+            success=False,
+            outputs=[],
+            error={
+                "code": "WORKER_ERROR",
+                "message": str(e),
+                "traceback": "",
+            },
+            metrics={"execution_us": 0, "peak_vram_bytes": 0},
+        )
 
 
 if __name__ == "__main__":

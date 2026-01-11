@@ -194,11 +194,27 @@ async fn execute_graph(
     Path(id): Path<String>,
     Json(_request): Json<ExecuteRequest>,
 ) -> Result<Json<ExecuteResponse>, AppError> {
-    // Verify graph exists
-    let _ = state.graphs.get_by_id(&id).await
+    tracing::info!(graph_id = %id, "Executing graph");
+
+    // 1. Fetch graph from database
+    let graph_model = state.graphs.get_by_id(&id).await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound(format!("Graph {} not found", id)))?;
-    
+
+    // 2. Parse graph JSON to GraphDSL
+    let graph_json = graph_model.graph_json.clone();
+    let graph: crate::graph::GraphDSL = serde_json::from_str(&graph_json)
+        .map_err(|e| AppError::Internal(format!("Failed to parse graph JSON: {}", e)))?;
+
+    // 3. Validate graph structure
+    graph.validate().map_err(|e| AppError::BadRequest(format!("Invalid graph: {:?}", e)))?;
+
+    // 4. Schedule nodes and create execution plan
+    let scheduler = crate::scheduler::Scheduler::new();
+    let execution_plan = scheduler.create_execution_plan(&graph, None)
+        .map_err(|e| AppError::Internal(format!("Failed to schedule graph: {:?}", e)))?;
+
+    // 5. Create run record
     let run_id = uuid::Uuid::new_v4().to_string();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -208,7 +224,7 @@ async fn execute_graph(
     let run_model = crate::entities::run::Model {
         id: run_id.clone(),
         graph_hash: id.clone(),
-        status: crate::entities::run::RunStatus::Pending,
+        status: crate::entities::run::RunStatus::Running,
         created_at: now,
         completed_at: None,
         error_json: None,
@@ -216,19 +232,39 @@ async fn execute_graph(
 
     state.runs.insert(run_model).await
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    
-    // Emit execution start event - scheduler picks up via broadcast
-    let _ = state.tx.send(WsMessage::Progress {
-        run_id: run_id.clone(),
-        node_id: "_start".to_string(),
-        progress: 0.0,
+
+    // 6. Get estimated time BEFORE moving execution_plan
+    let estimated_time_ms = execution_plan.estimated_time_ms;
+
+    // 7. Spawn execution in background
+    let tx = state.tx.clone();
+    let run_repo = state.runs.clone();
+    let run_id_clone = run_id.clone();
+    let graph_id = id.clone();
+
+    tokio::spawn(async move {
+        let ctx = crate::execution::ExecutionContext {
+            run_id: run_id_clone.clone(),
+            graph_id: graph_id.clone(),
+            graph,
+            execution_plan,
+            tx,
+            run_repo,
+        };
+
+        match ctx.execute().await {
+            Ok(status) => {
+                tracing::info!(run_id = %run_id_clone, status = ?status, "Execution completed");
+            }
+            Err(e) => {
+                tracing::error!(run_id = %run_id_clone, error = %e, "Execution failed");
+            }
+        }
     });
-    
-    tracing::info!(run_id = %run_id, graph_id = %id, "Execution scheduled");
-    
+
     Ok(Json(ExecuteResponse {
         run_id,
-        estimated_time_ms: 1000,
+        estimated_time_ms,
     }))
 }
 

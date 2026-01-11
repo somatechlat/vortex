@@ -1,9 +1,12 @@
 # VORTEX Implementation Tasks
 ## Derived from Software Design Documents
 
-> **Source**: 4 SDDs (1,800+ lines) | 5 SRS (8,700+ lines)  
-> **Phases**: 6 | **Total Tasks**: 120+  
-> **Est. Duration**: 12-16 weeks (2 developers)
+> **Source of Truth**: `gemini/tasks/TASKS.md` (file-level tracker)  
+> **Design Summary**: `gemini/docs/design/00_system_design.md`  
+> **SRS Set**: `gemini/docs/specs/`  
+> **Phases**: 6 | **Total Tasks**: See `gemini/tasks/TASKS.md`
+
+This document is the implementation plan and should reference the file-level task tracker.
 
 ---
 

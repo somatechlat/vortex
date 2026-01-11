@@ -26,7 +26,6 @@ async fn get_db() -> Arc<Database> {
 }
 
 #[tokio::test]
-#[ignore]  // Requires: DATABASE_URL + port-forward to real PostgreSQL
 async fn test_tenant_repo_crud() {
     let db = get_db().await;
     let repo = TenantRepository::new(db.clone());
@@ -63,7 +62,6 @@ async fn test_tenant_repo_crud() {
 }
 
 #[tokio::test]
-#[ignore]
 async fn test_graph_repo_crud() {
     let db = get_db().await;
     let repo = GraphRepository::new(db.clone());
@@ -98,7 +96,6 @@ async fn test_graph_repo_crud() {
 }
 
 #[tokio::test]
-#[ignore]
 async fn test_run_repo_crud() {
     let db = get_db().await;
     let repo = RunRepository::new(db.clone());

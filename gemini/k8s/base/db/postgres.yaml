@@ -89,12 +89,3 @@ spec:
   resources:
     requests:
       storage: 1Gi
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-credentials
-  namespace: vortex
-type: Opaque
-stringData:
-  password: "vortex-dev-password"

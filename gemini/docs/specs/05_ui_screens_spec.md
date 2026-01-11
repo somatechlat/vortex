@@ -19,6 +19,7 @@ The UI defines the **"Vortex Rack"**, a vertical stack of atomic processing unit
 *   **The Rack**: A stack of horizontal, glassmorphic "Blade" units.
 *   **The Inspector**: A precise, context-aware sidebar for parameter tuning.
 *   **Kernel AI**: An embedded LLM agent for natural language control.
+*   **Human Approval**: Explicit approval gates with audit-friendly review.
 
 ### 1.3 Definitions
 | Term | Definition |
@@ -28,6 +29,7 @@ The UI defines the **"Vortex Rack"**, a vertical stack of atomic processing unit
 | **Blade** | The glassmorphic visual style of a Rack Unit. |
 | **Tap** | A connection point where a Unit reads/writes to the Bus. |
 | **Soma Identity** | The "Mitchell Hybrid" aesthetic (Mint/Cream/Teal, Geist Font). |
+| **Approval Gate** | A UI blade that blocks execution until a human approves. |
 
 ---
 
@@ -155,7 +157,27 @@ The UI defines the **"Vortex Rack"**, a vertical stack of atomic processing unit
 *   **Location**: Bottom of Sidebar.
 *   **Input**: "Enter command or query kernel..."
 *   **Response**: Streaming text responses in `Geist Mono`.
-*   **Capabilities**: Can auto-configure rack units based on natural language (e.g., "Set up a flow for anime portraits").
+*   **Capabilities**: Can auto-configure rack units based on natural language and MCP tool metadata (e.g., "Set up a flow for 25 character variations").
+*   **Explanations**: Provides a "Why this flow" breakdown of tool choices and parameter defaults.
+
+### 3.6 Screen S-102: Approval Gate + Review Panel
+**ID**: `PNL-APPROVAL`
+**Description**: The explicit human-in-the-loop checkpoint for sensitive actions.
+
+#### 3.6.1 Content
+*   **Location**: Sidebar (between Inspector and Kernel AI).
+*   **Header**: "APPROVAL REQUIRED"
+*   **Summary**:
+    *   Tool name + version
+    *   Risk flags (e.g., External IO, High Cost, Data Access)
+    *   Estimated cost (GPU seconds, tokens)
+*   **Diff View**:
+    *   `param_name: before -> after` table
+*   **Actions**:
+    *   **Approve** (Mint)
+    *   **Reject** (Destructive red)
+    *   **Add Reason** (required for rejection)
+*   **Audit Banner**: "All decisions are logged."
 
 ---
 
@@ -177,6 +199,22 @@ The UI defines the **"Vortex Rack"**, a vertical stack of atomic processing unit
 2.  **Signal Inspector** (S-100) slides out from right.
 3.  User adjusts "CFG Scale" slider.
 4.  User sees real-time breakdown of VRAM impact in Inspector.
+
+### 4.3 Flow F-03: Human Approval Gate
+1.  User initiates a run that triggers a policy gate.
+2.  The Rack inserts an **Approval Gate Blade** at the triggering step.
+3.  The **Approval Panel** opens with tool metadata and parameter diff.
+4.  User clicks **Approve** or **Reject**.
+5.  The decision is transmitted to Core and recorded in audit log.
+
+### 4.4 Flow F-04: Agent-First Flow Creation (Expert User)
+1.  User opens Vortex. **SCR-MAIN** loads (Empty Rack).
+2.  User opens **Kernel AI** and asks: "I need a flow for this image with 25 variations."
+3.  Agent generates a full rack using MCP tool metadata and inserts the complete flow.
+4.  Agent displays rationale: tool selection, seed strategy, and identity preservation.
+5.  User requests changes (e.g., "Change sampler; explain why").
+6.  Agent applies changes and updates rationale and estimated cost.
+7.  User runs the flow; Approval Gate appears if required.
 
 ---
 

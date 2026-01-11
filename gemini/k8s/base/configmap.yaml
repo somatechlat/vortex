@@ -20,7 +20,7 @@ data:
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "vortex"
   POSTGRES_USER: "vortex"
-  POSTGRES_PASSWORD: "vortex_password" # In production, these should be from Vault
+  # POSTGRES_PASSWORD is injected via Vault/ExternalSecret at deploy time (not env)
   
   # Compute defaults
   VORTEX_COMPUTE_MODE: "cpu"

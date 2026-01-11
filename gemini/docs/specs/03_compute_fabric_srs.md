@@ -7,10 +7,12 @@
 
 ---
 
+> **Policy**: Development must mirror production behavior; only local resource limits may differ.
+
 ## 1. Introduction
 
 ### 1.1 Purpose
-This SRS specifies the software requirements for the **Compute Fabric**, the distributed execution environment for VORTEX. It details the Python worker lifecycle, the Zero-Copy data ingress/egress protocols, and the runtime security sandboxing mechanisms.
+This SRS specifies the software requirements for the **Compute Fabric**, the distributed execution environment for VORTEX. It details the Python worker lifecycle, the Zero-Copy data ingress/egress protocols, the runtime security sandboxing mechanisms, and multi-node deployment modes.
 
 ### 1.2 Scope
 The Compute Fabric allows the execution of arbitrary Python code (Nodes) within a strictly controlled environment.
@@ -34,13 +36,18 @@ The Compute Fabric allows the execution of arbitrary Python code (Nodes) within 
 ## 2. Overall Description
 
 ### 2.1 Product Perspective
-The Compute Fabric operates as a child process of the Core Engine. It has no direct User Interface. It communicates solely via a Unix Domain Socket (Control) and Shared Memory (Data).
+The Compute Fabric can operate in **two modes**:
+1.  **Local Mode**: Worker runs on the same machine as the Core Engine.
+2.  **Cluster Mode**: Worker runs on a separate machine (GPU node) while the Core Engine remains on CPU nodes.
+
+In both modes, the Worker has no direct User Interface. Local mode uses Unix Domain Socket (Control) and Shared Memory (Data). Cluster mode uses a secure network transport while preserving the same Protobuf message framing.
 
 ### 2.2 Product Functions
 *   **F-01: Execution Loop**: Listening for and processing execution commands.
 *   **F-02: Zero-Copy Bridge**: Converting raw pointers to usable Tensors.
 *   **F-03: Security Sandbox**: Intercepting and blocking dangerous Python calls.
 *   **F-04: Exception Marshalling**: capturing and serializing stack traces.
+*   **F-05: Remote Worker Registration**: Registering GPU workers in Cluster Mode.
 
 ### 2.3 User Classes and Characteristics
 *   **None**: The Compute Fabric is an internal subsystem.
@@ -49,6 +56,8 @@ The Compute Fabric operates as a child process of the Core Engine. It has no dir
 *   **Runtime**: Python 3.10+ (System).
 *   **Libraries**: `torch`, `pyarrow`, `numpy`.
 *   **OS**: Linux/macOS (Must support `SO_PEERCRED` or similar for auth).
+*   **Cluster Transport**: TCP/TLS or equivalent secure channel for remote workers.
+*   **GPU Nodes**: Dedicated worker hosts with CUDA/MPS-capable devices.
 
 ---
 
@@ -58,6 +67,7 @@ The Compute Fabric operates as a child process of the Core Engine. It has no dir
 #### 3.1.1 Software Interfaces
 *   **SI-01 (Inputs)**: The Worker shall accept `JobDefinition` Protobuf messages.
 *   **SI-02 (Outputs)**: The Worker shall return `JobResult` Protobuf messages.
+*   **SI-03 (Remote Transport)**: The Worker shall accept Protobuf frames over a secure network channel when running in Cluster Mode.
 
 ### 3.2 Functional Requirements
 
@@ -72,6 +82,15 @@ The Compute Fabric operates as a child process of the Core Engine. It has no dir
     5.  Execute `Node.process(Job.inputs)`.
     6.  Serialize Result and Send.
 *   **Outputs**: Result Packet sent to Host.
+
+#### 3.2.4 [F-05] Remote Worker Registration
+*   **Description**: Allow Core Engine to discover and dispatch to remote GPU workers.
+*   **Inputs**: Worker bootstrap config and node metadata.
+*   **Processing**:
+    1.  Worker starts and registers capability metadata (GPU, VRAM, device type).
+    2.  Core Engine validates identity and assigns a worker slot.
+    3.  Core Engine routes jobs based on capability and policy.
+*   **Outputs**: Worker registration record and routing eligibility.
 
 #### 3.2.2 [F-02] Zero-Copy Arrow Bridge
 *   **Description**: Creating Tensors from Shared Memory.
@@ -1667,4 +1686,3 @@ graph TD
 | 14.0.0 | 2026-01-06 | System | Flow Diagrams |
 | 15.0.0 | 2026-01-06 | System | 1200+ line expansion |
 | 16.0.0 | 2026-01-06 | System | UML, Components, Sequences, Activities, States, Security, Perf |
-

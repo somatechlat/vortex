@@ -21,14 +21,17 @@ spec:
         args:
           - "server"
           - "-dev"
-          - "-dev-root-token-id=vortex-dev-token"
+          - "-dev-root-token-id=$(VAULT_DEV_ROOT_TOKEN_ID)"
           - "-dev-listen-address=0.0.0.0:8200"
         ports:
         - containerPort: 8200
           name: http
         env:
         - name: VAULT_DEV_ROOT_TOKEN_ID
-          value: "vortex-dev-token"
+          valueFrom:
+            secretKeyRef:
+              name: vault-dev-token
+              key: token
         - name: VAULT_ADDR
           value: "http://127.0.0.1:8200"
         resources:

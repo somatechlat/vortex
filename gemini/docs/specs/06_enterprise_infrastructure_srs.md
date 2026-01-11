@@ -1,4 +1,4 @@
-# VORTEX Enterprise Infrastructure SRS
+# VORTEX Production HA Infrastructure SRS
 
 > **Document ID**: VORTEX-SRS-INFRA-001  
 > **Version**: 1.0.0  
@@ -7,10 +7,12 @@
 
 ---
 
+> **Policy**: Development must mirror production behavior; only local resource limits may differ.
+
 ## 1. Introduction
 
 ### 1.1 Purpose
-This document specifies the enterprise infrastructure requirements for VORTEX-GEN 3.0, covering security, authentication, authorization, database, and observability components.
+This document specifies the production HA infrastructure requirements for VORTEX-GEN 3.0, covering security, authentication, authorization, database, and observability components.
 
 ### 1.2 Scope
 All infrastructure components deployed via Kubernetes (Tilt + Minikube for development).
@@ -44,6 +46,42 @@ All externally exposed services follow the VORTEX Port Authority specification (
 | 11204 | Milvus Metrics | HTTP | Prometheus |
 | 11205 | SpiceDB gRPC | gRPC | Authorization |
 | 11206 | SpiceDB HTTP | HTTP | Authorization REST |
+| 11207 | OPA | HTTP | Policy Decision Point |
+
+---
+
+## 2.1 Deployment Modes
+
+### 2.1.1 Local Mode (Single Node)
+*   **Control Plane** and **Compute Fabric** run on the same machine.
+*   IPC uses UDS + local SHM.
+*   Intended for development and single-host inference.
+
+### 2.1.2 Cluster Mode (CPU Control Plane + GPU Workers)
+*   **Control Plane** runs on CPU-only nodes.
+*   **GPU Workers** run on separate GPU nodes (one or more).
+*   Control Plane dispatches jobs over secure transport.
+*   Worker SHM remains node-local to each GPU worker.
+*   Worker discovery and capacity tracking are centralized.
+
+---
+
+## 2.2 Cluster Topology (Reference)
+
+```
+             ┌────────────────────────────┐
+             │        CPU Control Plane   │
+             │  Core + API + Policy + DB  │
+             └──────────────┬─────────────┘
+                            │ Secure Transport
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+│ GPU Worker A   │  │ GPU Worker B   │  │ GPU Worker N   │
+│ Python + Torch │  │ Python + Torch │  │ Python + Torch │
+│ Local SHM      │  │ Local SHM      │  │ Local SHM      │
+└────────────────┘  └────────────────┘  └────────────────┘
+```
 
 ---
 
@@ -86,7 +124,7 @@ image: hashicorp/vault:1.15
 ports:
   - 8200 (HTTP API)
 mode: dev (development), HA (production)
-root_token: vortex-dev-token (dev only)
+root_token: (vault-managed secret)
 ```
 
 ---
@@ -133,7 +171,7 @@ image: quay.io/keycloak/keycloak:23.0
 ports:
   - 8080 (HTTP)
 mode: start-dev (development)
-admin: admin / vortex-dev-admin
+admin: admin / (vault-managed)
 ```
 
 ---
@@ -193,7 +231,44 @@ ports:
   - 8443 (HTTP)
   - 9090 (Metrics)
 datastore: memory (dev), postgres (prod)
-preshared_key: vortex-dev-key
+preshared_key: (vault-managed)
+```
+
+---
+
+### 3.4 Open Policy Agent (OPA) (REQ-SEC-004)
+
+**Purpose**: Centralized policy evaluation for execution gating, cost limits, and HITL triggers.
+
+#### 3.4.1 Requirements
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| REQ-SEC-004.1 | OPA shall evaluate run and tool policies | MUST |
+| REQ-SEC-004.2 | OPA shall integrate with SpiceDB for fine-grained authz | MUST |
+| REQ-SEC-004.3 | Policy decisions shall be enforceable server-side | MUST |
+| REQ-SEC-004.4 | Policy decision latency < 10ms (p95) | SHOULD |
+
+#### 3.4.2 Policy Inputs (Minimum)
+
+```json
+{
+  "user": { "id": "uid_123", "roles": ["graph-executor"] },
+  "action": "run.execute",
+  "resource": { "type": "template", "id": "tpl_456" },
+  "cost": { "gpu_seconds": 42, "tokens": 12000 },
+  "flags": ["EXTERNAL_IO", "HIGH_COST"]
+}
+```
+
+#### 3.4.3 Deployment
+
+```yaml
+image: openpolicyagent/opa:0.61.0
+ports:
+  - 8181 (HTTP)
+mode: server
+bundle: pulled from internal policy repo
 ```
 
 ---
@@ -321,7 +396,7 @@ storage: 10Gi PVC
 
 ### 5.1 SeaORM (REQ-ORM-001)
 
-**Purpose**: Enterprise-grade Rust ORM built on SQLx
+**Purpose**: Production-grade Rust ORM built on SQLx
 
 #### 5.1.1 Requirements
 
@@ -400,7 +475,7 @@ open http://localhost:11201  # Keycloak
 ### 7.2 Storing HuggingFace Token
 
 ```bash
-export HF_TOKEN="hf_xxxxx"
+vault kv put secret/vortex/huggingface token="hf_xxxxx"
 tilt trigger vault-init
 ```
 
@@ -415,7 +490,7 @@ tilt trigger vault-init
 | REQ-CFG-001.1 | Single source of truth for all settings | MUST |
 | REQ-CFG-001.2 | NO secrets in environment variables | MUST |
 | REQ-CFG-001.3 | ALL secrets stored in Vault | MUST |
-| REQ-CFG-001.4 | Environment detection (SANDBOX/LIVE) | MUST |
+| REQ-CFG-001.4 | Environment detection (development_sandbox / development_live / production) | MUST |
 | REQ-CFG-001.5 | Hardware auto-detection (GPU/CPU) | MUST |
 
 ### 8.2 Configuration Separation
@@ -425,7 +500,7 @@ tilt trigger vault-init
 │                 ENVIRONMENT VARIABLES                   │
 │              (Non-secret operational settings)          │
 ├─────────────────────────────────────────────────────────┤
-│  VORTEX_MODE         │  sandbox | live                  │
+│  VORTEX_ENV          │  development_sandbox | development_live | production │
 │  VORTEX_NAMESPACE    │  vortex                          │
 │  VAULT_ADDR          │  http://vault:8200               │
 │  POSTGRES_HOST       │  postgres                        │
@@ -482,23 +557,23 @@ impl VaultPaths {
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| REQ-CFG-002.1 | SANDBOX mode for development/testing | MUST |
-| REQ-CFG-002.2 | LIVE mode for production | MUST |
+| REQ-CFG-002.1 | DEVELOPMENT_SANDBOX mode for development/testing | MUST |
+| REQ-CFG-002.2 | DEVELOPMENT_LIVE mode for production-like validation | MUST |
 | REQ-CFG-002.3 | GPU/CPU auto-detection via nvidia-smi | MUST |
-| REQ-CFG-002.4 | Settings change based on mode | MUST |
+| REQ-CFG-002.4 | Only resource limits may differ by mode; behavior matches production | MUST |
 
 ### 9.2 Mode Comparison
 
-| Setting | SANDBOX | LIVE |
-|---------|---------|------|
-| Log Level | debug | error |
-| Log Format | pretty | json |
-| Debug Panel | ✅ | ❌ |
-| Billing | ❌ | ✅ |
-| Swagger | ✅ | ❌ |
-| Rate Limit | 1000/min | 100/min |
-| Max Jobs | 2 | 32 |
-| Inference | CPU | GPU (if available) |
+| Setting | DEVELOPMENT_SANDBOX | DEVELOPMENT_LIVE | PRODUCTION |
+|---------|----------------------|------------------|------------|
+| Log Level | error | error | error |
+| Log Format | json | json | json |
+| Debug Panel | ❌ | ❌ | ❌ |
+| Billing | ✅ | ✅ | ✅ |
+| Swagger | ❌ | ❌ | ❌ |
+| Rate Limit | 100/min | 100/min | 100/min |
+| Max Jobs | 2 | 32 | 32 |
+| Inference | GPU (if available) | GPU (if available) | GPU (if available) |
 
 ### 9.3 Hardware Detection
 

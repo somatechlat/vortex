@@ -19,6 +19,7 @@ from .generated import control
 @dataclass
 class Job:
     """Job received from the Rust host (wrapper for JobRequest proto)."""
+
     job_id: str
     node_type: str
     params_json: bytes  # Raw JSON bytes from proto
@@ -29,6 +30,7 @@ class Job:
 @dataclass
 class JobResult:
     """Result to send back (wrapper for JobResult proto)."""
+
     job_id: str
     success: bool
     outputs: List[Dict[str, Any]]
@@ -93,26 +95,28 @@ class IPCSocket:
         try:
             request = control.JobRequest()
             request.ParseFromString(data)
-            
+
             # Convert to Job wrapper
             inputs = {}
             for tensor_input in request.inputs:
                 if tensor_input.tensor:
                     inputs[tensor_input.name] = {
-                        'offset': tensor_input.tensor.offset,
-                        'size_bytes': tensor_input.tensor.size_bytes,
-                        'dtype': tensor_input.tensor.dtype,
-                        'shape': list(tensor_input.tensor.shape),
+                        "offset": tensor_input.tensor.offset,
+                        "size_bytes": tensor_input.tensor.size_bytes,
+                        "dtype": tensor_input.tensor.dtype,
+                        "shape": list(tensor_input.tensor.shape),
                     }
-            
+
             outputs = []
             for spec in request.outputs:
-                outputs.append({
-                    'name': spec.name,
-                    'dtype': spec.dtype,
-                    'expected_shape': list(spec.expected_shape),
-                })
-            
+                outputs.append(
+                    {
+                        "name": spec.name,
+                        "dtype": spec.dtype,
+                        "expected_shape": list(spec.expected_shape),
+                    }
+                )
+
             job = Job(
                 job_id=request.job_id,
                 node_type=request.node_type,
@@ -120,13 +124,14 @@ class IPCSocket:
                 inputs=inputs,
                 outputs=outputs,
             )
-            
+
             print(f"[IPC] Received job: {job.job_id} for node type: {job.node_type}")
             return job
-            
+
         except Exception as e:
             print(f"[IPC] Decode error: {e}")
             import traceback
+
             traceback.print_exc()
             return None
 
@@ -139,35 +144,35 @@ class IPCSocket:
         proto_result = control.JobResult()
         proto_result.job_id = result.job_id
         proto_result.success = result.success
-        
+
         # Add outputs
         for output in result.outputs:
             tensor_output = proto_result.outputs.add()
-            tensor_output.name = output['name']
+            tensor_output.name = output["name"]
             tensor_ref = tensor_output.tensor
-            tensor_ref.offset = output.get('offset', 0)
-            tensor_ref.size_bytes = output.get('size_bytes', 0)
-            tensor_ref.dtype = output.get('dtype', 0)
-            if 'shape' in output:
-                tensor_ref.shape.extend(output['shape'])
-        
+            tensor_ref.offset = output.get("offset", 0)
+            tensor_ref.size_bytes = output.get("size_bytes", 0)
+            tensor_ref.dtype = output.get("dtype", 0)
+            if "shape" in output:
+                tensor_ref.shape.extend(output["shape"])
+
         # Add error if present
         if result.error:
             proto_error = proto_result.error
-            proto_error.code = result.error.get('code', 'UNKNOWN')
-            proto_error.message = result.error.get('message', '')
-            proto_error.traceback = result.error.get('traceback', '')
-        
+            proto_error.code = result.error.get("code", "UNKNOWN")
+            proto_error.message = result.error.get("message", "")
+            proto_error.traceback = result.error.get("traceback", "")
+
         # Add metrics if present
         if result.metrics:
             proto_metrics = proto_result.metrics
-            proto_metrics.execution_us = result.metrics.get('execution_us', 0)
-            proto_metrics.peak_vram_bytes = result.metrics.get('peak_vram_bytes', 0)
-            proto_metrics.tokens_processed = result.metrics.get('tokens_processed', 0)
-        
+            proto_metrics.execution_us = result.metrics.get("execution_us", 0)
+            proto_metrics.peak_vram_bytes = result.metrics.get("peak_vram_bytes", 0)
+            proto_metrics.tokens_processed = result.metrics.get("tokens_processed", 0)
+
         # Serialize
         data = proto_result.SerializeToString()
-        
+
         # Send length prefix (Big-Endian) + data
         length = struct.pack(">I", len(data))
         self.sock.sendall(length + data)

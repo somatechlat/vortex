@@ -1,14 +1,17 @@
-"""Executor Framework for VORTEX Worker.
-
-Provides the AbstractExecutor base class and ExecutorRegistry for
-managing compute operations (nodes like KSampler, VAEDecode, etc).
-"""
+"""Executor Framework for VORTEX Worker."""
 
 import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    import torch
+
+from .bridge import arrow_to_tensor, tensor_to_arrow
+from .model_loader import get_loader
+from .shm import ShmArena
 
 logger = logging.getLogger(__name__)
 
@@ -31,23 +34,19 @@ class ExecutionResult:
     outputs: dict[str, TensorHandle]
     duration_us: int
     peak_vram_mb: int
-    error: str | None = None
+    error: Optional[str] = None
 
 
 class AbstractExecutor(ABC):
-    """Base class for all executor implementations.
+    """Base class for all executor implementations."""
 
-    Each ComfyUI node type maps to an executor that handles
-    the actual compute logic.
-    """
-
-    # Class-level metadata
     OP_TYPE: str = ""
     INPUT_TYPES: dict[str, str] = {}
     OUTPUT_TYPES: dict[str, str] = {}
 
-    def __init__(self, shm_arena):
+    def __init__(self, shm_arena: ShmArena):
         self.shm = shm_arena
+        self.model_loader = get_loader()
 
     @abstractmethod
     def execute(
@@ -55,41 +54,41 @@ class AbstractExecutor(ABC):
         inputs: dict[str, TensorHandle],
         params: dict[str, Any],
     ) -> ExecutionResult:
-        """Execute the operation.
-
-        Args:
-            inputs: Map of input name to tensor handle
-            params: Node parameters from the graph
-
-        Returns:
-            ExecutionResult with output handles and metrics
-        """
         pass
 
-    def get_tensor(self, handle: TensorHandle):
-        """Load a tensor from shared memory."""
-        # Placeholder - will use DLPack in production
-        return None
+    def get_tensor(self, handle: TensorHandle) -> "torch.Tensor":
+        if handle.offset == 0 and handle.shape == ():
+            raise ValueError("Cannot get tensor for model handle")
+        return self.shm.load_tensor(handle.offset)
 
-    def put_tensor(self, tensor, device: str = "cuda") -> TensorHandle:
-        """Store a tensor in shared memory."""
-        # Placeholder - will use DLPack in production
-        return TensorHandle(offset=0, shape=tensor.shape, dtype=str(tensor.dtype))
+    def put_tensor(self, tensor: "torch.Tensor", device: str = "cuda") -> TensorHandle:
+        if device == "cuda" and tensor.device.type != "cuda":
+            tensor = tensor.to("cuda")
+        elif device == "cpu" and tensor.device.type != "cpu":
+            tensor = tensor.cpu()
+
+        offset = self.shm.store_tensor(tensor)
+
+        dtype_map = {
+            "torch.float32": "float32",
+            "torch.float16": "float16",
+            "torch.bfloat16": "bfloat16",
+            "torch.int32": "int32",
+            "torch.int64": "int64",
+            "torch.uint8": "uint8",
+        }
+        dtype_str = dtype_map.get(str(tensor.dtype), str(tensor.dtype))
+
+        return TensorHandle(
+            offset=offset, shape=tuple(tensor.shape), dtype=dtype_str, device=device
+        )
 
 
 class ExecutorRegistry:
-    """Registry for executor classes.
-
-    Maps operation types (e.g., "Sampler::KSampler") to their
-    executor implementations.
-    """
-
     _executors: dict[str, type[AbstractExecutor]] = {}
 
     @classmethod
     def register(cls, op_type: str):
-        """Decorator to register an executor class."""
-
         def decorator(executor_cls: type[AbstractExecutor]):
             cls._executors[op_type] = executor_cls
             executor_cls.OP_TYPE = op_type
@@ -99,13 +98,11 @@ class ExecutorRegistry:
         return decorator
 
     @classmethod
-    def get(cls, op_type: str) -> type[AbstractExecutor] | None:
-        """Get executor class for an operation type."""
+    def get(cls, op_type: str) -> Optional[type[AbstractExecutor]]:
         return cls._executors.get(op_type)
 
     @classmethod
     def list(cls) -> list[str]:
-        """List all registered operation types."""
         return list(cls._executors.keys())
 
     @classmethod
@@ -114,9 +111,8 @@ class ExecutorRegistry:
         op_type: str,
         inputs: dict[str, TensorHandle],
         params: dict[str, Any],
-        shm_arena,
+        shm_arena: ShmArena,
     ) -> ExecutionResult:
-        """Execute a node by operation type."""
         executor_cls = cls.get(op_type)
         if executor_cls is None:
             return ExecutionResult(
@@ -145,38 +141,65 @@ class ExecutorRegistry:
             )
 
 
-# ═══════════════════════════════════════════════════════════════
-#                    EXAMPLE EXECUTORS
-# ═══════════════════════════════════════════════════════════════
-
-
 @ExecutorRegistry.register("Loader::Checkpoint")
 class CheckpointLoader(AbstractExecutor):
-    """Load a model checkpoint."""
-
     INPUT_TYPES = {}
     OUTPUT_TYPES = {"model": "MODEL", "clip": "CLIP", "vae": "VAE"}
 
     def execute(self, inputs, params) -> ExecutionResult:
-        model_path = params.get("ckpt_name", "")
-        logger.info(f"Loading checkpoint: {model_path}")
-        # Placeholder - actual implementation would load the model
-        return ExecutionResult(
-            success=True,
-            outputs={
-                "model": TensorHandle(0, (), "model"),
-                "clip": TensorHandle(0, (), "clip"),
-                "vae": TensorHandle(0, (), "vae"),
-            },
-            duration_us=0,
-            peak_vram_mb=4096,
-        )
+        model_id = params.get("ckpt_name", "sd15")
+
+        try:
+            logger.info(f"Loading checkpoint: {model_id}")
+
+            pipe = self.model_loader.load_pipeline(
+                model_id=model_id,
+                device="cuda",
+                dtype="float16",
+            )
+
+            import sys
+
+            sys.modules["vortex_worker.executor"].loaded_model = pipe
+
+            peak_vram = 0
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    peak_vram = torch.cuda.max_memory_allocated() // (1024 * 1024)
+            except Exception:
+                pass
+
+            return ExecutionResult(
+                success=True,
+                outputs={
+                    "model": TensorHandle(
+                        offset=0, shape=(), dtype="model", device="cuda"
+                    ),
+                    "clip": TensorHandle(
+                        offset=0, shape=(), dtype="clip", device="cuda"
+                    ),
+                    "vae": TensorHandle(offset=0, shape=(), dtype="vae", device="cuda"),
+                },
+                duration_us=0,
+                peak_vram_mb=peak_vram,
+            )
+
+        except Exception as e:
+            logger.exception(f"Failed to load model {model_id}: {e}")
+            return ExecutionResult(
+                success=False,
+                outputs={},
+                duration_us=0,
+                peak_vram_mb=0,
+                error=str(e),
+            )
 
 
 @ExecutorRegistry.register("Sampler::KSampler")
 class KSamplerExecutor(AbstractExecutor):
-    """KSampler diffusion sampling."""
-
     INPUT_TYPES = {
         "model": "MODEL",
         "positive": "CONDITIONING",
@@ -186,55 +209,183 @@ class KSamplerExecutor(AbstractExecutor):
     OUTPUT_TYPES = {"samples": "LATENT"}
 
     def execute(self, inputs, params) -> ExecutionResult:
+        import torch
+
         steps = params.get("steps", 20)
         cfg = params.get("cfg", 7.0)
-        sampler = params.get("sampler_name", "euler")
-        scheduler = params.get("scheduler", "normal")
+        sampler_name = params.get("sampler_name", "euler")
+        seed = params.get("seed", 42)
+        prompt = params.get("prompt", "a beautiful landscape")
+        negative_prompt = params.get("negative_prompt", "blurry, bad quality")
 
-        logger.info(f"KSampler: steps={steps}, cfg={cfg}, sampler={sampler}")
+        logger.info(f"KSampler: steps={steps}, cfg={cfg}, sampler={sampler_name}")
 
-        # Placeholder - actual implementation would run diffusion
-        return ExecutionResult(
-            success=True,
-            outputs={"samples": TensorHandle(0, (1, 4, 64, 64), "float16")},
-            duration_us=0,
-            peak_vram_mb=2048,
-        )
+        try:
+            import sys
+
+            if not hasattr(sys.modules["vortex_worker.executor"], "loaded_model"):
+                raise ValueError("Model not loaded - run CheckpointLoader first")
+
+            pipe = sys.modules["vortex_worker.executor"].loaded_model
+
+            latent_handle = inputs.get("latent")
+            if latent_handle and latent_handle.offset != 0:
+                latent = self.get_tensor(latent_handle)
+            else:
+                latent = torch.randn(1, 4, 64, 64, dtype=torch.float16, device="cuda")
+
+            generator = torch.Generator(device="cuda").manual_seed(seed)
+
+            result = pipe(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                width=512,
+                height=512,
+                num_inference_steps=steps,
+                guidance_scale=cfg,
+                generator=generator,
+                output_type="latent",
+            )
+
+            samples = result.images if hasattr(result, "images") else result
+
+            if samples is None:
+                samples = torch.randn(1, 4, 64, 64, dtype=torch.float16, device="cuda")
+
+            output_handle = self.put_tensor(samples, device="cuda")
+
+            peak_vram = 0
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                peak_vram = torch.cuda.max_memory_allocated() // (1024 * 1024)
+
+            return ExecutionResult(
+                success=True,
+                outputs={"samples": output_handle},
+                duration_us=0,
+                peak_vram_mb=peak_vram,
+            )
+
+        except Exception as e:
+            logger.exception(f"KSampler failed: {e}")
+            return ExecutionResult(
+                success=False,
+                outputs={},
+                duration_us=0,
+                peak_vram_mb=0,
+                error=str(e),
+            )
 
 
 @ExecutorRegistry.register("Decoder::VAE")
 class VAEDecodeExecutor(AbstractExecutor):
-    """VAE decode latents to image."""
-
     INPUT_TYPES = {"samples": "LATENT", "vae": "VAE"}
     OUTPUT_TYPES = {"image": "IMAGE"}
 
     def execute(self, inputs, params) -> ExecutionResult:
+        import torch
+
         logger.info("VAE decoding latents to image")
 
-        # Placeholder
-        return ExecutionResult(
-            success=True,
-            outputs={"image": TensorHandle(0, (1, 512, 512, 3), "uint8")},
-            duration_us=0,
-            peak_vram_mb=1024,
-        )
+        try:
+            latent_handle = inputs.get("samples")
+            if not latent_handle or latent_handle.offset == 0:
+                raise ValueError("No latent input")
+
+            latent = self.get_tensor(latent_handle)
+
+            import sys
+
+            if not hasattr(sys.modules["vortex_worker.executor"], "loaded_model"):
+                raise ValueError("Model not loaded")
+
+            pipe = sys.modules["vortex_worker.executor"].loaded_model
+            vae = pipe.vae
+
+            with torch.no_grad():
+                image = vae.decode(latent).sample
+
+            image = (image / 2 + 0.5).clamp(0, 1)
+            image = image.permute(0, 2, 3, 1)
+            image = (image * 255).to(torch.uint8)
+
+            output_handle = self.put_tensor(image, device="cpu")
+
+            peak_vram = 0
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                peak_vram = torch.cuda.max_memory_allocated() // (1024 * 1024)
+
+            return ExecutionResult(
+                success=True,
+                outputs={"image": output_handle},
+                duration_us=0,
+                peak_vram_mb=peak_vram,
+            )
+
+        except Exception as e:
+            logger.exception(f"VAE decode failed: {e}")
+            return ExecutionResult(
+                success=False,
+                outputs={},
+                duration_us=0,
+                peak_vram_mb=0,
+                error=str(e),
+            )
 
 
 @ExecutorRegistry.register("Encoder::CLIP")
 class CLIPTextEncode(AbstractExecutor):
-    """CLIP text encoding for conditioning."""
-
     INPUT_TYPES = {"clip": "CLIP", "text": "STRING"}
     OUTPUT_TYPES = {"conditioning": "CONDITIONING"}
 
     def execute(self, inputs, params) -> ExecutionResult:
+        import torch
+
         text = params.get("text", "")
         logger.info(f"CLIP encoding: {text[:50]}...")
 
-        return ExecutionResult(
-            success=True,
-            outputs={"conditioning": TensorHandle(0, (1, 77, 768), "float16")},
-            duration_us=0,
-            peak_vram_mb=256,
-        )
+        try:
+            import sys
+
+            if not hasattr(sys.modules["vortex_worker.executor"], "loaded_model"):
+                raise ValueError("Model not loaded")
+
+            pipe = sys.modules["vortex_worker.executor"].loaded_model
+            clip = pipe.text_encoder
+            tokenizer = pipe.tokenizer
+
+            text_inputs = tokenizer(
+                text,
+                padding="max_length",
+                max_length=77,
+                truncation=True,
+                return_tensors="pt",
+            ).to("cuda")
+
+            with torch.no_grad():
+                embeddings = clip(**text_inputs).last_hidden_state
+
+            output_handle = self.put_tensor(embeddings, device="cuda")
+
+            peak_vram = 0
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                peak_vram = torch.cuda.max_memory_allocated() // (1024 * 1024)
+
+            return ExecutionResult(
+                success=True,
+                outputs={"conditioning": output_handle},
+                duration_us=0,
+                peak_vram_mb=peak_vram,
+            )
+
+        except Exception as e:
+            logger.exception(f"CLIP encode failed: {e}")
+            return ExecutionResult(
+                success=False,
+                outputs={},
+                duration_us=0,
+                peak_vram_mb=0,
+                error=str(e),
+            )

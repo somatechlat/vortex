@@ -4,7 +4,7 @@
 
 use sea_orm::*;
 use crate::error::{VortexError, VortexResult};
-use crate::entities::run;
+use crate::entities::{run, run_step};
 use crate::db::Database;
 use std::sync::Arc;
 
@@ -33,6 +33,15 @@ impl RunRepository {
             .one(self.db.connection())
             .await
             .map_err(|e| VortexError::Internal(e.to_string()))
+    }
+
+    /// Update run (entire model)
+    pub async fn update(&self, model: run::Model) -> VortexResult<()> {
+        let active_model: run::ActiveModel = model.into();
+        active_model.update(self.db.connection())
+            .await
+            .map_err(|e| VortexError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     /// Update status and progress
@@ -81,6 +90,30 @@ impl RunRepository {
         run.error_json = Set(error);
 
         run.update(self.db.connection())
+            .await
+            .map_err(|e| VortexError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Insert a run step (node execution record)
+    pub async fn insert_step(
+        &self,
+        run_id: &str,
+        node_id: &str,
+        worker_pid: i32,
+        duration_us: i64,
+        peak_vram_mb: i64,
+    ) -> VortexResult<()> {
+        let model = run_step::Model {
+            run_id: run_id.to_string(),
+            node_id: node_id.to_string(),
+            worker_pid,
+            duration_us,
+            peak_vram_mb,
+        };
+        
+        let active_model: run_step::ActiveModel = model.into();
+        active_model.insert(self.db.connection())
             .await
             .map_err(|e| VortexError::Internal(e.to_string()))?;
         Ok(())

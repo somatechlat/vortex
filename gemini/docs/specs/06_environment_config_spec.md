@@ -13,7 +13,7 @@
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_ENV` | enum | `development` | ❌ | Environment: `development`, `staging`, `production` |
+| `VORTEX_ENV` | enum | `development_sandbox` | ❌ | Environment: `development_sandbox`, `development_live`, `production` |
 | `VORTEX_PORT` | int | `11188` | ❌ | HTTP API port (external; Port Authority: 11000+) |
 | `VORTEX_WS_PORT` | int | `11189` | ❌ | WebSocket port (external; Port Authority: 11000+) |
 | `VORTEX_HOST` | string | `0.0.0.0` | ❌ | Bind address |
@@ -106,6 +106,9 @@ port = 11188
 ws_port = 11189
 workers = 4
 
+[environment]
+mode = "development_sandbox" # development_sandbox | development_live | production
+
 [shm]
 name = "/vortex-shm"
 size = "64GB"
@@ -145,7 +148,7 @@ custom_nodes = "~/.vortex/custom_nodes"
 # ========================================
 # CORE ENGINE
 # ========================================
-VORTEX_ENV=development
+VORTEX_ENV=development_sandbox
 VORTEX_PORT=11188
 VORTEX_WS_PORT=11189
 VORTEX_HOST=0.0.0.0
@@ -251,32 +254,36 @@ VORTEX_WS_URL=ws://localhost:11189
 ---
 
 ## 4. ENVIRONMENT PROFILES
+**Policy:** Development must behave like production; only local resource limits may differ.
 
-### 4.1 Development Profile
+### 4.1 Development Sandbox Profile
 
 | Variable | Value | Rationale |
 |----------|-------|-----------|
-| `VORTEX_ENV` | `development` | Enable dev features |
-| `VORTEX_LOG_LEVEL` | `debug` | Verbose logging |
-| `VORTEX_LOG_FORMAT` | `pretty` | Human-readable logs |
-| `VORTEX_SANDBOX_ENABLED` | `false` | Easier debugging |
+| `VORTEX_ENV` | `development_sandbox` | Development with strict isolation |
+| `VORTEX_LOG_LEVEL` | `error` | Match production |
+| `VORTEX_LOG_FORMAT` | `json` | Match production |
+| `VORTEX_SANDBOX_ENABLED` | `true` | Enforced sandbox |
+| `VORTEX_METRICS_ENABLED` | `true` | Match production |
 | `VORTEX_WORKERS` | `2` | Reduced resource usage |
 
-### 4.2 Staging Profile
+### 4.2 Development Live Profile
 
 | Variable | Value | Rationale |
 |----------|-------|-----------|
-| `VORTEX_ENV` | `staging` | Near-production |
-| `VORTEX_LOG_LEVEL` | `info` | Normal logging |
+| `VORTEX_ENV` | `development_live` | Dev with full production behavior |
+| `VORTEX_LOG_LEVEL` | `error` | Match production |
 | `VORTEX_LOG_FORMAT` | `json` | Structured logs |
 | `VORTEX_SANDBOX_ENABLED` | `true` | Security enabled |
+| `VORTEX_METRICS_ENABLED` | `true` | Monitoring |
+| `VORTEX_WORKERS` | `4` | Near-production scale |
 
 ### 4.3 Production Profile
 
 | Variable | Value | Rationale |
 |----------|-------|-----------|
 | `VORTEX_ENV` | `production` | Production mode |
-| `VORTEX_LOG_LEVEL` | `warn` | Minimal logging |
+| `VORTEX_LOG_LEVEL` | `error` | Minimal logging |
 | `VORTEX_LOG_FORMAT` | `json` | Log aggregation |
 | `VORTEX_SANDBOX_ENABLED` | `true` | Security enforced |
 | `VORTEX_METRICS_ENABLED` | `true` | Monitoring |

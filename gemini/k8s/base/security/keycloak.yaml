@@ -108,12 +108,3 @@ spec:
   selector:
     app: keycloak
 ---
-# Default admin secret (override in production)
-apiVersion: v1
-kind: Secret
-metadata:
-  name: keycloak-admin
-  namespace: vortex
-type: Opaque
-stringData:
-  password: "vortex-dev-admin"

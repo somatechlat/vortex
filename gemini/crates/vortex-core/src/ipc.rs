@@ -1,138 +1,22 @@
-CT FILES //! IPC - Inter-Process Communication via Unix Domain Sockets
+//! IPC - Inter-Process Communication via Unix Domain Sockets
 //!
 //! Implements SRS Section 3.6.2 (IPC Gateway Trait)
+//! Uses Protobuf messages with Big-Endian length prefix (4 bytes)
+//!
+//! Protocol Specification:
+//! - 4 bytes (u32 Big-Endian): message length
+//! - N bytes: Protobuf-encoded message
 
 use crate::error::{VortexError, VortexResult};
-use serde::{Deserialize, Serialize};
 use std::path::Path;
+use vortex_protocol::{JobRequest, JobResult, Heartbeat, WorkerHandshake, HandshakeAck};
+use prost::Message;
 
 /// Default socket path
 pub const SOCKET_PATH: &str = "/tmp/vortex.sock";
 
 /// Protocol version
 pub const PROTOCOL_VERSION: u32 = 1;
-
-/// Control packet types matching SRS Section 3.4.2 (Protobuf Definition)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ControlPacket {
-    pub request_id: String,
-    pub timestamp: i64,
-    pub payload: PacketPayload,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum PacketPayload {
-    Handshake(Handshake),
-    HandshakeAck(HandshakeAck),
-    JobSubmit(JobSubmit),
-    JobResult(JobResult),
-    JobCancel(JobCancel),
-    Heartbeat(Heartbeat),
-    Error(ErrorPayload),
-}
-
-/// Worker handshake message
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Handshake {
-    pub protocol_version: u32,
-    pub worker_id: String,
-    pub capabilities: Vec<String>,
-}
-
-/// Handshake acknowledgment
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HandshakeAck {
-    pub slot_id: u8,
-    pub shm_name: String,
-}
-
-/// Job submission
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JobSubmit {
-    pub job_id: String,
-    pub node_id: String,
-    pub op_type: String,
-    pub input_handles: Vec<u64>,  // Offsets in SHM
-    pub params: serde_json::Value,
-}
-
-/// Job result
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JobResult {
-    pub job_id: String,
-    pub success: bool,
-    pub output_handle: Option<u64>,
-    pub error_message: Option<String>,
-    pub duration_us: u64,
-    pub peak_vram_mb: u64,
-}
-
-/// Job cancellation
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JobCancel {
-    pub job_id: String,
-}
-
-/// Heartbeat message
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Heartbeat {
-    pub worker_id: String,
-    pub timestamp: i64,
-}
-
-/// Error payload
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErrorPayload {
-    pub code: String,
-    pub message: String,
-}
-
-impl ControlPacket {
-    /// Create a new packet with auto-generated request ID
-    pub fn new(payload: PacketPayload) -> Self {
-        Self {
-            request_id: uuid::Uuid::new_v4().to_string(),
-            timestamp: chrono_timestamp(),
-            payload,
-        }
-    }
-    
-    /// Serialize to bytes (length-prefixed JSON)
-    pub fn to_bytes(&self) -> VortexResult<Vec<u8>> {
-        let json = serde_json::to_vec(self)?;
-        let len = json.len() as u32;
-        
-        let mut buf = Vec::with_capacity(4 + json.len());
-        buf.extend_from_slice(&len.to_le_bytes());
-        buf.extend_from_slice(&json);
-        
-        Ok(buf)
-    }
-    
-    /// Deserialize from bytes
-    pub fn from_bytes(data: &[u8]) -> VortexResult<Self> {
-        if data.len() < 4 {
-            return Err(VortexError::Internal("Packet too short".to_string()));
-        }
-        
-        let len = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
-        if data.len() < 4 + len {
-            return Err(VortexError::Internal("Incomplete packet".to_string()));
-        }
-        
-        let packet = serde_json::from_slice(&data[4..4 + len])?;
-        Ok(packet)
-    }
-}
-
-/// Get current timestamp in milliseconds
-fn chrono_timestamp() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
 
 /// IPC Gateway for Unix Domain Socket communication
 pub struct IpcGateway {
@@ -209,34 +93,93 @@ pub struct IpcConnection {
 
 #[cfg(target_family = "unix")]
 impl IpcConnection {
-    /// Send a packet
-    pub fn send(&mut self, packet: &ControlPacket) -> VortexResult<()> {
+    /// Send a protobuf message with Big-Endian length prefix
+    pub fn send<M: Message>(&mut self, message: &M) -> VortexResult<()> {
         use std::io::Write;
         
-        let bytes = packet.to_bytes()?;
-        self.stream.write_all(&bytes)?;
+        // Encode message
+        let mut buf = Vec::with_capacity(message.encoded_len());
+        message.encode(&mut buf).map_err(|e| {
+            VortexError::IpcFailure { reason: format!("Encode failed: {}", e) }
+        })?;
+        
+        // Create length prefix (4 bytes, Big-Endian)
+        let len = buf.len() as u32;
+        let len_bytes = len.to_be_bytes();
+        
+        // Send length + message
+        self.stream.write_all(&len_bytes)?;
+        self.stream.write_all(&buf)?;
+        
         Ok(())
     }
     
-    /// Receive a packet (blocking)
-    pub fn recv(&mut self) -> VortexResult<ControlPacket> {
+    /// Receive a protobuf message (Big-Endian length prefix)
+    pub fn receive<M: Message + Default>(&mut self) -> VortexResult<M> {
         use std::io::Read;
         
-        // Read length prefix
+        // Read length prefix (4 bytes, Big-Endian)
         let mut len_buf = [0u8; 4];
         self.stream.read_exact(&mut len_buf)?;
-        let len = u32::from_le_bytes(len_buf) as usize;
+        let len = u32::from_be_bytes(len_buf) as usize;
+        
+        // Validate length
+        if len > 16 * 1024 * 1024 { // 16MB max
+            return Err(VortexError::IpcFailure {
+                reason: format!("Message too large: {} bytes", len)
+            });
+        }
         
         // Read payload
         let mut payload = vec![0u8; len];
         self.stream.read_exact(&mut payload)?;
         
-        // Prepend length for parsing
-        let mut full = Vec::with_capacity(4 + len);
-        full.extend_from_slice(&len_buf);
-        full.extend_from_slice(&payload);
+        // Decode message
+        let message = M::decode(&*payload).map_err(|e| {
+            VortexError::IpcFailure { reason: format!("Decode failed: {}", e) }
+        })?;
         
-        ControlPacket::from_bytes(&full)
+        Ok(message)
+    }
+    
+    /// Send JobRequest
+    pub fn send_job_request(&mut self, request: &JobRequest) -> VortexResult<()> {
+        self.send(request)
+    }
+    
+    /// Send JobResult
+    pub fn send_job_result(&mut self, result: &JobResult) -> VortexResult<()> {
+        self.send(result)
+    }
+    
+    /// Send Heartbeat
+    pub fn send_heartbeat(&mut self, heartbeat: &Heartbeat) -> VortexResult<()> {
+        self.send(heartbeat)
+    }
+    
+    /// Send WorkerHandshake
+    pub fn send_handshake(&mut self, handshake: &WorkerHandshake) -> VortexResult<()> {
+        self.send(handshake)
+    }
+    
+    /// Receive JobRequest
+    pub fn receive_job_request(&mut self) -> VortexResult<JobRequest> {
+        self.receive()
+    }
+    
+    /// Receive JobResult
+    pub fn receive_job_result(&mut self) -> VortexResult<JobResult> {
+        self.receive()
+    }
+    
+    /// Receive Heartbeat
+    pub fn receive_heartbeat(&mut self) -> VortexResult<Heartbeat> {
+        self.receive()
+    }
+    
+    /// Receive HandshakeAck
+    pub fn receive_handshake_ack(&mut self) -> VortexResult<HandshakeAck> {
+        self.receive()
     }
     
     /// Get the peer PID (for authentication via SO_PEERCRED)
@@ -285,18 +228,56 @@ pub struct IpcConnection;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vortex_protocol::control::{TensorInput, TensorRef, TensorOutputSpec};
+    use vortex_protocol::JobRequest;
 
     #[test]
-    fn test_packet_serialization() {
-        let packet = ControlPacket::new(PacketPayload::Handshake(Handshake {
-            protocol_version: 1,
-            worker_id: "worker_0".to_string(),
-            capabilities: vec!["CUDA".to_string()],
-        }));
+    fn test_protobuf_serialization() {
+        // Create a JobRequest
+        let request = JobRequest {
+            job_id: "test-job-123".to_string(),
+            node_type: "com.vortex.ksampler".to_string(),
+            params_json: b"{\"steps\": 20}".to_vec(),
+            inputs: vec![
+                TensorInput {
+                    name: "latent".to_string(),
+                    tensor: Some(TensorRef {
+                        offset: 0,
+                        size_bytes: 1024,
+                        dtype: 0, // f32
+                        shape: vec![4, 64, 64],
+                    }),
+                }
+            ],
+            outputs: vec![
+                TensorOutputSpec {
+                    name: "output".to_string(),
+                    dtype: 0,
+                    expected_shape: vec![4, 64, 64],
+                }
+            ],
+        };
         
-        let bytes = packet.to_bytes().unwrap();
-        let decoded = ControlPacket::from_bytes(&bytes).unwrap();
+        // Encode to bytes
+        let mut buf = Vec::with_capacity(request.encoded_len());
+        request.encode(&mut buf).unwrap();
         
-        assert_eq!(packet.request_id, decoded.request_id);
+        // Decode back
+        let decoded = JobRequest::decode(&*buf).unwrap();
+        
+        assert_eq!(request.job_id, decoded.job_id);
+        assert_eq!(request.node_type, decoded.node_type);
+        assert_eq!(request.inputs.len(), decoded.inputs.len());
+    }
+
+    #[test]
+    fn test_length_prefix() {
+        // Test Big-Endian length encoding
+        let len: u32 = 1024;
+        let bytes = len.to_be_bytes();
+        
+        // Decode
+        let decoded = u32::from_be_bytes(bytes);
+        assert_eq!(len, decoded);
     }
 }
