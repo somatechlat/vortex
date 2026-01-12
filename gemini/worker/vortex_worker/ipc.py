@@ -10,7 +10,7 @@ Uses the same protobuf schemas as the Rust host (vortex-protocol).
 import socket
 import struct
 from dataclasses import dataclass
-from typing import Optional, Dict, List, Any
+from typing import Any
 
 # Import generated protobuf classes
 from .generated import control
@@ -23,8 +23,8 @@ class Job:
     job_id: str
     node_type: str
     params_json: bytes  # Raw JSON bytes from proto
-    inputs: Dict[str, Any]  # TensorInput mapping
-    outputs: List[Dict[str, Any]]  # Output specs
+    inputs: dict[str, Any]  # TensorInput mapping
+    outputs: list[dict[str, Any]]  # Output specs
 
 
 @dataclass
@@ -33,9 +33,9 @@ class JobResult:
 
     job_id: str
     success: bool
-    outputs: List[Dict[str, Any]]
-    error: Optional[Dict[str, str]] = None
-    metrics: Optional[Dict[str, Any]] = None
+    outputs: list[dict[str, Any]]
+    error: dict[str, str] | None = None
+    metrics: dict[str, Any] | None = None
 
 
 class IPCSocket:
@@ -48,7 +48,7 @@ class IPCSocket:
 
     def __init__(self, path: str):
         self.path = path
-        self.sock: Optional[socket.socket] = None
+        self.sock: socket.socket | None = None
 
     def connect(self) -> None:
         """Connect to the Rust host."""
@@ -63,7 +63,7 @@ class IPCSocket:
             self.sock.close()
             self.sock = None
 
-    def receive(self, timeout_ms: int = 1000) -> Optional[Job]:
+    def receive(self, timeout_ms: int = 1000) -> Job | None:
         """Receive a job from the host.
 
         Returns None on timeout.
@@ -188,7 +188,7 @@ class IPCSocket:
         )
         self.send_result(result)
 
-    def _recv_exact(self, n: int) -> Optional[bytes]:
+    def _recv_exact(self, n: int) -> bytes | None:
         """Receive exactly n bytes."""
         if not self.sock:
             return None

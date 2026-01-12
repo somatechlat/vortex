@@ -4,12 +4,11 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import torch
 
-from .bridge import arrow_to_tensor, tensor_to_arrow
 from .model_loader import get_loader
 from .shm import ShmArena
 
@@ -34,7 +33,7 @@ class ExecutionResult:
     outputs: dict[str, TensorHandle]
     duration_us: int
     peak_vram_mb: int
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class AbstractExecutor(ABC):
@@ -98,7 +97,7 @@ class ExecutorRegistry:
         return decorator
 
     @classmethod
-    def get(cls, op_type: str) -> Optional[type[AbstractExecutor]]:
+    def get(cls, op_type: str) -> type[AbstractExecutor] | None:
         return cls._executors.get(op_type)
 
     @classmethod

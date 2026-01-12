@@ -4,12 +4,12 @@ import logging
 import signal
 import sys
 import time
-from typing import NoReturn, Optional
+from typing import NoReturn
 
-from .config import WorkerConfig, SHM_SIZE_BYTES, HEARTBEAT_INTERVAL_MS, JOB_TIMEOUT_MS
+from .config import HEARTBEAT_INTERVAL_MS, JOB_TIMEOUT_MS, SHM_SIZE_BYTES, WorkerConfig
 from .ipc import IPCSocket, Job, JobResult
+from .sandbox import enable_sandbox
 from .shm import ShmArena
-from .sandbox import enable_sandbox, validate_node_code, SecurityViolation
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def main() -> NoReturn:
         shm.register_worker(config.slot_id)
         shm.set_worker_status(config.slot_id, 2)
 
-        ipc: Optional[IPCSocket] = None
+        ipc: IPCSocket | None = None
         try:
             ipc = IPCSocket(config.ipc_path)
             ipc.connect()
@@ -112,6 +112,7 @@ def main() -> NoReturn:
 def execute_job(job: Job, shm: ShmArena) -> JobResult:
     """Execute a compute job using real executors."""
     import json
+
     from .executor import ExecutorRegistry, TensorHandle
 
     logger.info(f"Executing job: {job.job_id} (type: {job.node_type})")

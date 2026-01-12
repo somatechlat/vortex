@@ -10,10 +10,10 @@ Implements:
 import ast
 import builtins
 import logging
-import sys
 import platform
+import sys
 from collections.abc import Callable
-from typing import Any, Set, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════
 
 # Blocked modules - cannot be imported under any circumstances
-BLOCKED_MODULES: Set[str] = {
+BLOCKED_MODULES: set[str] = {
     "os",
     "subprocess",
     "socket",
@@ -46,7 +46,7 @@ BLOCKED_MODULES: Set[str] = {
 }
 
 # Blocked builtins - high risk functions
-BLOCKED_BUILTINS: Set[str] = {
+BLOCKED_BUILTINS: set[str] = {
     "exec",
     "eval",
     "compile",
@@ -110,8 +110,8 @@ class ASTSafetyScanner(ast.NodeVisitor):
     """
 
     def __init__(self):
-        self.dangerous_nodes: List[str] = []
-        self.safe_nodes: List[str] = []
+        self.dangerous_nodes: list[str] = []
+        self.safe_nodes: list[str] = []
 
     def visit_Import(self, node: ast.Import) -> None:
         """Detect import statements."""

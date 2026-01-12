@@ -3,7 +3,6 @@
 import ctypes
 import mmap
 import time
-from typing import Optional
 
 try:
     import torch
@@ -67,7 +66,9 @@ class TensorHeader(ctypes.Structure):
 
 TENSOR_MAGIC = 0x5453_4552_4F56_5458
 # Verify size - Python struct should match Rust layout
-assert ctypes.sizeof(TensorHeader) >= 112, f"TensorHeader too small: {ctypes.sizeof(TensorHeader)}"
+assert (
+    ctypes.sizeof(TensorHeader) >= 112
+), f"TensorHeader too small: {ctypes.sizeof(TensorHeader)}"
 
 
 class ShmArena:
@@ -75,7 +76,7 @@ class ShmArena:
     SLOTS_OFFSET = 0x40
     TENSOR_DATA_OFFSET = 0x4000
 
-    def __init__(self, name: Optional[str] = None, size: int = 0):
+    def __init__(self, name: str | None = None, size: int = 0):
         import posix_ipc
 
         self.name = name or self.SHM_NAME
@@ -151,8 +152,6 @@ class ShmArena:
     def store_tensor(self, tensor) -> int:
         if not DLPACK_AVAILABLE:
             raise RuntimeError("DLPack not available")
-
-        import numpy as np
 
         shape = list(tensor.shape)
         dtype = tensor.dtype
