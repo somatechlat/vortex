@@ -53,7 +53,7 @@ impl ExecutionContext {
         // Wait for worker to bind socket
         sleep(Duration::from_millis(500)).await;
         
-        let mut gateway = IpcGateway::new(&socket_path);
+        let gateway = IpcGateway::new(&socket_path);
         let mut conn = match gateway.accept() {
             Ok(c) => c,
             Err(e) => {
