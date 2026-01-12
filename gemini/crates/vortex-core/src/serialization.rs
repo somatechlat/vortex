@@ -10,7 +10,8 @@
 //! - Cross-platform: Works with SHM-backed tensors
 
 use crate::error::{VortexError, VortexResult};
-use dlpack_sys::{DLContext, DLDataType, DLDevice, DLTensor};
+// Note: DLContext is not available in dlpack-sys 0.1.1
+use dlpack_sys::{DLDataType, DLDevice, DLTensor};
 use ndarray::{ArrayD, IxDyn};
 use std::sync::Arc;
 use vortex_config::VortexConfig;
@@ -69,18 +70,6 @@ pub struct Tensor {
 
 impl Tensor {
     /// Create a CPU tensor from ndarray
-    ///
-    /// # Arguments
-    /// * `array` - nd-array to convert
-    ///
-    /// # Returns
-    /// Tensor with DLPack backend
-    ///
-    /// # Example
-    /// ```ignore
-    /// let arr = array![[1.0, 2.0], [3.0, 4.0]].into_dyn();
-    /// let tensor = Tensor::from_ndarray(arr)?;
-    /// ```
     pub fn from_ndarray<T>(array: ArrayD<T>) -> VortexResult<Self>
     where
         T: Copy + 'static,
@@ -92,8 +81,6 @@ impl Tensor {
         let total_elements: usize = shape.iter().product();
         let element_size = size_of::<T>();
 
-        // Copy array data to owned vector
-        // This is the ONE copy - after this, zero-copy between processes
         let mut data_vec = vec![0u8; total_elements * element_size];
         unsafe {
             std::ptr::copy_nonoverlapping(
@@ -144,12 +131,17 @@ impl Tensor {
         // Convert shape to i64 for DLPack (C-compatible)
         let dl_shape: Vec<i64> = shape.iter().map(|&s| s as i64).collect();
 
+        // Create strides (row-major, all 1 for contiguous arrays)
+        let strides: Vec<i64> = vec![1; shape.len()];
+
+        // dlpack-sys 0.1.1 DLTensor requires strides field
         let dl_tensor = DLTensor {
             data: data_ptr,
             device: DeviceType::CPU.to_dl_device(),
             ndim: shape.len() as i32,
             dtype,
             shape: dl_shape.as_ptr() as *mut i64,
+            strides: strides.as_ptr() as *mut i64,
             byte_offset: 0,
         };
 
@@ -163,9 +155,6 @@ impl Tensor {
     }
 
     /// Convert DLPack tensor back to ndarray
-    ///
-    /// # Returns
-    /// Owned ndarray (will copy if not on CPU)
     pub fn to_ndarray<T>(&self) -> VortexResult<ArrayD<T>>
     where
         T: Copy + 'static,
@@ -208,12 +197,15 @@ impl Tensor {
 
     /// Get total bytes
     pub fn nbytes(&self) -> usize {
+        // Use constants from dlpack_sys for type codes
+        let kdl_float = dlpack_sys::DLDataTypeCode_kDLFloat as u8;
+        let kdl_int = dlpack_sys::DLDataTypeCode_kDLInt as u8;
+        let kdl_uint = dlpack_sys::DLDataTypeCode_kDLUInt as u8;
+        
         let element_size = match (self.dtype.code, self.dtype.bits) {
-            (dlpack_sys::DLDataTypeCode_kDLFloat, 32) => 4,
-            (dlpack_sys::DLDataTypeCode_kDLFloat, 64) => 8,
-            (dlpack_sys::DLDataTypeCode_kDLInt, 32) => 4,
-            (dlpack_sys::DLDataTypeCode_kDLInt, 64) => 8,
-            (dlpack_sys::DLDataTypeCode_kDLUInt, 8) => 1,
+            (c, 32) if c == kdl_float || c == kdl_int => 4,
+            (c, 64) if c == kdl_float || c == kdl_int => 8,
+            (c, 8) if c == kdl_uint => 1,
             _ => 4,
         };
         self.shape.iter().product::<usize>() * element_size
@@ -234,11 +226,6 @@ pub struct ShmTensor {
 
 impl ShmTensor {
     /// Create tensor in shared memory
-    ///
-    /// # Arguments
-    /// * `array` - Data to store
-    /// * `shm_name` - Shared memory name from config
-    /// * `offset` - Offset within SHM region
     pub fn create_in_shm<T>(
         array: ArrayD<T>,
         shm_name: &str,
@@ -247,8 +234,6 @@ impl ShmTensor {
     where
         T: Copy + 'static,
     {
-        // Future: Write directly to SHM region
-        // For now, create in regular memory then map
         let tensor = Tensor::from_ndarray(array)?;
 
         Ok(Self {
@@ -290,11 +275,9 @@ impl TensorFactory {
 
     /// Get recommended SHM size for tensor
     pub fn get_shm_size(&self, tensor: &Tensor) -> usize {
-        // Use configured max VRAM as baseline, but allow for tensor size
         let max_vram_bytes = self.config.worker.max_vram_mb as usize * 1024 * 1024;
         let tensor_size = tensor.nbytes();
         
-        // Return tensor size, capped by max VRAM
         std::cmp::min(tensor_size, max_vram_bytes)
     }
 
@@ -341,7 +324,6 @@ mod tests {
         let arr = array![[1.0f32, 2.0], [3.0, 4.0]].into_dyn();
         let tensor = Tensor::from_ndarray(arr).unwrap();
         
-        // 4 elements * 4 bytes each = 16 bytes
         assert_eq!(tensor.nbytes(), 16);
     }
 

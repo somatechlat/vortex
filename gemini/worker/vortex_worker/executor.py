@@ -229,9 +229,9 @@ class KSamplerExecutor(AbstractExecutor):
 
             latent_handle = inputs.get("latent")
             if latent_handle and latent_handle.offset != 0:
-                latent = self.get_tensor(latent_handle)
+                self.get_tensor(latent_handle)
             else:
-                latent = torch.randn(1, 4, 64, 64, dtype=torch.float16, device="cuda")
+                torch.randn(1, 4, 64, 64, dtype=torch.float16, device="cuda")
 
             generator = torch.Generator(device="cuda").manual_seed(seed)
 

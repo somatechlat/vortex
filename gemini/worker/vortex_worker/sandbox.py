@@ -301,32 +301,6 @@ def _install_seccomp_bpf() -> bool:
         f = seccomp_lib.SyscallFilter(defaction=seccomp_lib.ALLOW)
 
         # Allow basic syscalls needed by Python
-        allowed = [
-            "read",
-            "write",
-            "open",
-            "close",
-            "stat",
-            "fstat",
-            "mmap",
-            "munmap",
-            "brk",
-            "rt_sigaction",
-            "rt_sigprocmask",
-            "ioctl",
-            "pread64",
-            "getpid",
-            "getuid",
-            "geteuid",
-            "getgid",
-            "getegid",
-            "futex",
-            "sched_yield",
-            "nanosleep",
-            "exit_group",
-            "clone",
-            "set_tid_address",
-        ]
 
         # Block dangerous syscalls
         blocked = [
