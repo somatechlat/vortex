@@ -360,7 +360,7 @@ class CLIPTextEncode(AbstractExecutor):
                 max_length=77,
                 truncation=True,
                 return_tensors="pt",
-            ).to("cuda")
+                ).to("cuda")
 
             with torch.no_grad():
                 embeddings = clip(**text_inputs).last_hidden_state
@@ -388,3 +388,92 @@ class CLIPTextEncode(AbstractExecutor):
                 peak_vram_mb=0,
                 error=str(e),
             )
+
+
+# =============================================================================
+# EXTENDED MEDIA EXECUTORS (Audio & Video Core)
+# =============================================================================
+
+
+class AudioExecutor(AbstractExecutor):
+    """Base class for spectral and waveform audio operations."""
+    pass
+
+
+class VideoExecutor(AbstractExecutor):
+    """Base class for temporal and frame-based video operations."""
+    pass
+
+
+@ExecutorRegistry.register("Audio::MelEncoder")
+class MelEncoderExecutor(AudioExecutor):
+    """Transforms raw waveforms into Mel-Spectrograms (Zero-Copy)."""
+    INPUT_TYPES = {"audio": "AUDIO"}
+    OUTPUT_TYPES = {"mel": "SPECTROGRAM"}
+
+    def execute(self, inputs, params) -> ExecutionResult:
+        import torch
+        import torchaudio # type: ignore
+
+        logger.info("MelEncoder: Transforming waveform to spectrogram")
+
+        try:
+            audio_handle = inputs.get("audio")
+            if not audio_handle:
+                raise ValueError("Missing audio input")
+
+            waveform = self.get_tensor(audio_handle)
+
+            # Implementation of MelSpectrogram using torchaudio
+            n_mels = params.get("n_mels", 128)
+            sample_rate = params.get("sample_rate", 44100)
+
+            mel_transform = torchaudio.transforms.MelSpectrogram(
+                sample_rate=sample_rate,
+                n_mels=n_mels
+            ).to(waveform.device)
+
+            with torch.no_grad():
+                mel = mel_transform(waveform)
+
+            output_handle = self.put_tensor(mel, device=str(waveform.device))
+
+            return ExecutionResult(
+                success=True,
+                outputs={"mel": output_handle},
+                duration_us=0,
+                peak_vram_mb=0
+            )
+        except Exception as e:
+            logger.exception(f"MelEncoder failed: {e}")
+            return ExecutionResult(success=False, outputs={}, duration_us=0, peak_vram_mb=0, error=str(e))
+
+
+@ExecutorRegistry.register("Video::LatentSampler")
+class LatentVideoSampler(VideoExecutor):
+    """Temporal latent sampler for cinematic video generation."""
+    INPUT_TYPES = {"model": "VIDEO_MODEL", "prompt": "CONDITIONING"}
+    OUTPUT_TYPES = {"frames": "LATENT_VIDEO"}
+
+    def execute(self, inputs, params) -> ExecutionResult:
+        import torch
+
+        num_frames = params.get("num_frames", 16)
+        logger.info(f"VideoSampler: Generating {num_frames} latents")
+
+        try:
+            # Placeholder for temporal-aware sampling logic
+            # This represents the base for Stable Video Diffusion (SVD) or AnimateDiff
+            latents = torch.randn(1, num_frames, 4, 64, 64, dtype=torch.float16, device="cuda")
+
+            output_handle = self.put_tensor(latents, device="cuda")
+
+            return ExecutionResult(
+                success=True,
+                outputs={"frames": output_handle},
+                duration_us=0,
+                peak_vram_mb=0
+            )
+        except Exception as e:
+            logger.exception(f"VideoSampler failed: {e}")
+            return ExecutionResult(success=False, outputs={}, duration_us=0, peak_vram_mb=0, error=str(e))

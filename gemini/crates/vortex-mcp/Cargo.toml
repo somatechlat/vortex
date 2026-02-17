@@ -1,0 +1,17 @@
+[package]
+name = "vortex-mcp"
+version = "0.1.0"
+edition = "2021"
+description = "VORTEX Model Context Protocol (MCP) Bridge & Agentic Toolbox"
+
+[dependencies]
+vortex-protocol = { path = "../vortex-protocol" }
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+jsonrpsee = { version = "0.20", features = ["client", "async-client"] }
+async-trait = "0.1"
+thiserror = "1.0"
+log = "0.4"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+futures = "0.3"

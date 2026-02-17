@@ -60,7 +60,7 @@ class ControlPacket:
     request_id: str
     timestamp: int
     payload: Dict[str, Any]
-    
+
     def to_bytes(self) -> bytes:
         data = json.dumps({
             "request_id": self.request_id,
@@ -68,7 +68,7 @@ class ControlPacket:
             "payload": self.payload
         }).encode('utf-8')
         return struct.pack('<I', len(data)) + data
-    
+
     @classmethod
     def from_bytes(cls, data: bytes) -> 'ControlPacket':
         length = struct.unpack('<I', data[:4])[0]
@@ -86,9 +86,9 @@ def recv_packet(sock: socket.socket) -> ControlPacket:
     len_data = sock.recv(4)
     if len(len_data) < 4:
         raise ConnectionError("Connection closed")
-    
+
     length = struct.unpack('<I', len_data)[0]
-    
+
     # Read payload
     payload = b''
     while len(payload) < length:
@@ -96,7 +96,7 @@ def recv_packet(sock: socket.socket) -> ControlPacket:
         if not chunk:
             raise ConnectionError("Connection closed")
         payload += chunk
-    
+
     return ControlPacket.from_bytes(len_data + payload)
 
 
@@ -111,25 +111,25 @@ def send_packet(sock: socket.socket, packet: ControlPacket):
 
 class Executor(ABC):
     """Abstract base class for all compute nodes"""
-    
+
     @abstractmethod
     def execute(
-        self, 
-        inputs: Dict[str, Any], 
+        self,
+        inputs: Dict[str, Any],
         params: Dict[str, Any]
     ) -> Any:
         """
         Core logic for the node.
-        
+
         Args:
             inputs: Map of Input Name -> Tensor (Zero-Copy from SHM)
             params: Dictionary of configuration literals
-            
+
         Returns:
             The output Tensor (to be exported to SHM)
         """
         pass
-    
+
     def cleanup(self):
         """Optional hook for releasing heavy resources (e.g., Models)."""
         pass
@@ -141,7 +141,7 @@ class Executor(ABC):
 
 class PassthroughExecutor(Executor):
     """Simple passthrough for testing"""
-    
+
     def execute(self, inputs: Dict[str, Any], params: Dict[str, Any]) -> Any:
         # Just return the first input
         if inputs:
@@ -151,7 +151,7 @@ class PassthroughExecutor(Executor):
 
 class AddExecutor(Executor):
     """Add two tensors"""
-    
+
     def execute(self, inputs: Dict[str, Any], params: Dict[str, Any]) -> Any:
         try:
             import torch
@@ -188,56 +188,106 @@ def get_executor(op_type: str) -> Optional[Executor]:
 
 class SharedMemoryAccess:
     """Zero-Copy access to shared memory"""
-    
+
     def __init__(self, shm_name: str):
         self.shm_name = shm_name
         self.mm: Optional[mmap.mmap] = None
         self.fd: Optional[int] = None
-    
+
     def open(self):
         """Open and map the shared memory region"""
         import ctypes
-        
+
         # Open shared memory
         # Note: On macOS, shm_open uses /dev/shm-style naming differently
         shm_path = f"/dev/shm{self.shm_name}" if sys.platform == 'linux' else self.shm_name
-        
+
         try:
             # Try POSIX shm_open via ctypes
             libc = ctypes.CDLL('libc.so.6' if sys.platform == 'linux' else 'libc.dylib')
-            
+
             shm_open = libc.shm_open
             shm_open.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
             shm_open.restype = ctypes.c_int
-            
+
             O_RDWR = 0x0002
             self.fd = shm_open(self.shm_name.encode(), O_RDWR, 0o600)
-            
+
             if self.fd < 0:
                 raise OSError(f"shm_open failed for {self.shm_name}")
-            
+
             # Map the memory
             self.mm = mmap.mmap(self.fd, 0, access=mmap.ACCESS_WRITE)
-            
+
         except Exception as e:
             logger.warning(f"Failed to open SHM: {e}")
             self.mm = None
-    
-    def read_header(self) -> Dict[str, Any]:
-        """Read the shared memory header"""
+
+    def read_tensor(self, offset: int) -> Any:
+        """Read a tensor from SHM using the TensorHeader"""
         if not self.mm:
-            return {}
-        
-        self.mm.seek(0)
-        magic = struct.unpack('<Q', self.mm.read(8))[0]
-        version = struct.unpack('<I', self.mm.read(4))[0]
-        
-        return {
-            'magic': hex(magic),
-            'version': version,
-            'valid': magic == 0x5654583300000001
+            return None
+
+        # Read header (120 bytes)
+        self.mm.seek(offset)
+        header_data = self.mm.read(120)
+        magic, dt1, dt2, dt3, dev1, dev2, ndim = struct.unpack('<QBBBBHB', header_data[:16])
+
+        if magic != 0x545345524f565458:
+            logger.error(f"Invalid tensor magic at {offset}")
+            return None
+
+        shape = struct.unpack('<8q', header_data[16:80])
+        data_bytes, data_offset = struct.unpack('<QQ', header_data[80:96])
+
+        # Actual data
+        self.mm.seek(data_offset)
+        raw_data = self.mm.read(data_bytes)
+
+        import torch
+        import numpy as np
+
+        # Simplified dtype mapping
+        dtype_map = {
+            (0, 0, 0): torch.float32,
+            (0, 0, 1): torch.float16,
+            (1, 0, 0): torch.uint8,
         }
-    
+        dtype = dtype_map.get((dt1, dt2, dt3), torch.float32)
+
+        # Use frombuffer for zero-copy if possible (numpy first)
+        actual_shape = [s for s in shape[:ndim]]
+        array = np.frombuffer(raw_data, dtype=np.float32).reshape(actual_shape)
+        return torch.from_numpy(array).clone() # Clone to avoid SHM mutation issues in this phase
+
+    def write_tensor(self, tensor: Any, offset: int) -> int:
+        """Write a tensor to SHM and return the data offset"""
+        if not self.mm:
+            return 0
+
+        import torch
+        import numpy as np
+
+        # This is a simplified write logic
+        # In production, we'd use a memory allocator
+        data = tensor.detach().cpu().numpy().tobytes()
+        data_len = len(data)
+        data_offset = offset + 120 # Place data immediately after header for now
+
+        self.mm.seek(data_offset)
+        self.mm.write(data)
+
+        # Write header
+        header = struct.pack('<QBBBBHB', 0x545345524f565458, 0, 0, 0, 0, 0, len(tensor.shape))
+        header += struct.pack('<8q', *(list(tensor.shape) + [0]*(8-len(tensor.shape))))
+        header += struct.pack('<QQ', data_len, data_offset)
+        header += b'\x00' * 16 # Reserved
+
+        self.mm.seek(offset)
+        self.mm.write(header)
+
+        return data_offset
+
     def close(self):
         """Close the mapping"""
         if self.mm:
@@ -252,7 +302,7 @@ class SharedMemoryAccess:
 
 class Worker:
     """Main worker process"""
-    
+
     def __init__(self, slot_id: int, socket_path: str, shm_name: str):
         self.slot_id = slot_id
         self.socket_path = socket_path
@@ -261,13 +311,13 @@ class Worker:
         self.shm: Optional[SharedMemoryAccess] = None
         self.running = False
         self.worker_id = f"worker_{slot_id}_{os.getpid()}"
-    
+
     def connect(self):
         """Connect to the host supervisor"""
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.sock.connect(self.socket_path)
         logger.info(f"Connected to {self.socket_path}")
-        
+
         # Send handshake
         packet = ControlPacket(
             request_id=f"hs_{time.time_ns()}",
@@ -280,15 +330,15 @@ class Worker:
             }
         )
         send_packet(self.sock, packet)
-        
+
         # Wait for ack
         ack = recv_packet(self.sock)
         logger.info(f"Received handshake ack: {ack.payload}")
-    
+
     def _detect_capabilities(self) -> List[str]:
         """Detect available capabilities (CUDA, etc.)"""
         caps = []
-        
+
         try:
             import torch
             if torch.cuda.is_available():
@@ -299,25 +349,25 @@ class Worker:
             caps.append("TORCH")
         except ImportError:
             pass
-        
+
         try:
             import numpy
             caps.append("NUMPY")
         except ImportError:
             pass
-        
+
         return caps
-    
+
     def run(self):
         """Main event loop"""
         self.running = True
-        
+
         # Open shared memory
         self.shm = SharedMemoryAccess(self.shm_name)
         self.shm.open()
-        
+
         logger.info(f"Worker {self.worker_id} starting main loop")
-        
+
         while self.running:
             try:
                 packet = recv_packet(self.sock)
@@ -328,12 +378,12 @@ class Worker:
             except Exception as e:
                 logger.error(f"Error in main loop: {e}")
                 traceback.print_exc()
-    
+
     def _handle_packet(self, packet: ControlPacket):
         """Handle incoming packets"""
         payload = packet.payload
         ptype = payload.get('type')
-        
+
         if ptype == 'JobSubmit':
             self._execute_job(packet)
         elif ptype == 'JobCancel':
@@ -346,28 +396,46 @@ class Worker:
                 payload={"type": "Heartbeat", "worker_id": self.worker_id}
             )
             send_packet(self.sock, response)
-    
+
     def _execute_job(self, packet: ControlPacket):
         """Execute a job"""
         payload = packet.payload
         job_id = payload.get('job_id')
         op_type = payload.get('op_type')
         params = payload.get('params', {})
-        
+
         logger.info(f"Executing job {job_id}: {op_type}")
         start_time = time.perf_counter_ns()
-        
+
         try:
-            # Get executor
-            executor = get_executor(op_type)
-            if not executor:
-                raise ValueError(f"Unknown op_type: {op_type}")
-            
-            # Execute (TODO: Add proper input handling from SHM)
-            result = executor.execute({}, params)
-            
+            # Execute with SHM input handling
+            job_inputs = {}
+            for inp in payload.get('inputs', []):
+                name = inp['name']
+                offset = inp.get('shm_offset', 0)
+                if offset > 0:
+                    job_inputs[name] = self.shm.read_tensor(offset)
+
+            result = executor.execute(job_inputs, params)
+
+            # Handle output writing
+            output_offset = 0
+            if result is not None:
+                # Use a slot in SHM based on slot_id for demo
+                output_offset = 1024 * 1024 * self.slot_id
+                self.shm.write_tensor(result, output_offset)
+
             duration_us = (time.perf_counter_ns() - start_time) // 1000
-            
+
+            # Track VRAM
+            peak_vram = 0
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    peak_vram = torch.cuda.max_memory_allocated() // (1024 * 1024)
+            except:
+                pass
+
             # Send success result
             response = ControlPacket(
                 request_id=packet.request_id,
@@ -376,17 +444,17 @@ class Worker:
                     "type": "JobResult",
                     "job_id": job_id,
                     "success": True,
-                    "output_handle": None,  # TODO: Write to SHM
+                    "output_handle": output_offset,
                     "duration_us": duration_us,
-                    "peak_vram_mb": 0  # TODO: Track VRAM
+                    "peak_vram_mb": peak_vram
                 }
             )
             send_packet(self.sock, response)
-            
+
         except Exception as e:
             duration_us = (time.perf_counter_ns() - start_time) // 1000
             logger.error(f"Job {job_id} failed: {e}")
-            
+
             # Send error result
             response = ControlPacket(
                 request_id=packet.request_id,
@@ -401,7 +469,7 @@ class Worker:
                 }
             )
             send_packet(self.sock, response)
-    
+
     def shutdown(self):
         """Clean shutdown"""
         self.running = False
@@ -420,26 +488,26 @@ def main():
     parser.add_argument('--slot-id', type=int, required=True, help='Worker slot ID')
     parser.add_argument('--shm-name', default=SHM_NAME, help='Shared memory name')
     parser.add_argument('--socket', default=SOCKET_PATH, help='Socket path')
-    
+
     args = parser.parse_args()
-    
+
     logger.info(f"Starting worker: slot={args.slot_id}, shm={args.shm_name}")
-    
+
     worker = Worker(
         slot_id=args.slot_id,
         socket_path=args.socket,
         shm_name=args.shm_name
     )
-    
+
     # Handle signals
     def handle_signal(signum, frame):
         logger.info(f"Received signal {signum}, shutting down")
         worker.shutdown()
         sys.exit(0)
-    
+
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
-    
+
     try:
         worker.connect()
         worker.run()

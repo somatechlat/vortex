@@ -10,6 +10,7 @@ from .config import HEARTBEAT_INTERVAL_MS, JOB_TIMEOUT_MS, SHM_SIZE_BYTES, Worke
 from .ipc import IPCSocket, Job, JobResult
 from .sandbox import enable_sandbox
 from .shm import ShmArena
+from .serve import get_vault_secret  # Strict Vault Integration
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,14 @@ def setup_logging(config: WorkerConfig) -> None:
 
 def main() -> NoReturn:
     """Main worker entry point."""
+    # Fetch critical secrets from Vault before config init
+    db_password = get_vault_secret("vortex/prod", "db_password", default=os.getenv("VORTEX_DB_PASSWORD"))
+
     config = WorkerConfig.from_env()
+    # Inject Vault secrets into config
+    if db_password:
+        config.db_password = db_password
+
     setup_logging(config)
 
     logger.info(f"VORTEX Worker starting (slot={config.slot_id})")
@@ -113,6 +121,8 @@ def execute_job(job: Job, shm: ShmArena) -> JobResult:
     """Execute a compute job using real executors."""
     import json
 
+    # Import extras to register cloud executors
+    from . import extras
     from .executor import ExecutorRegistry, TensorHandle
 
     logger.info(f"Executing job: {job.job_id} (type: {job.node_type})")

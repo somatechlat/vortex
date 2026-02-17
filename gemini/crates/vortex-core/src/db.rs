@@ -10,11 +10,28 @@ use std::time::Duration;
 /// Database connection wrapper (SeaORM)
 pub struct Database {
     conn: DatabaseConnection,
+    db_type: DbType,  // NEW: Track database type
+}
+
+#[derive(Clone, Debug)]
+pub enum DbType {
+    Postgres,
+    SQLite,
 }
 
 impl Database {
     /// Create a new database connection from config with retries (Rule 122)
     pub async fn connect(config: &vortex_config::VortexConfig) -> VortexResult<Self> {
+        // Check for test mode environment variable
+        let use_sqlite = std::env::var("VORTEX_TEST_SQLITE")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+
+        if use_sqlite {
+            return Self::connect_sqlite().await;
+        }
+
+        // Production: PostgreSQL
         let user = std::env::var("POSTGRES_USER").unwrap_or_else(|_| "vortex".to_string());
         let pass = std::env::var("POSTGRES_PASSWORD").unwrap_or_default();
         
@@ -27,7 +44,7 @@ impl Database {
             config.database.postgres_db
         );
 
-        tracing::info!("Connecting to Database at {}:{} (Resilience: HIGH, Engine: SeaORM)", 
+        tracing::info!("Connecting to PostgreSQL at {}:{} (Resilience: HIGH)",
             config.database.postgres_host, config.database.postgres_port);
 
         let mut opt = ConnectOptions::new(url);
@@ -54,7 +71,19 @@ impl Database {
             }
         };
 
-        Ok(Self { conn })
+        Ok(Self { conn, db_type: DbType::Postgres })
+    }
+
+    /// Connect to SQLite for testing (NOT a mock - it's a real database)
+    pub async fn connect_sqlite() -> VortexResult<Self> {
+        tracing::info!("Connecting to SQLite (testing mode with real database)");
+
+        let url = "sqlite::memory:";
+        let opt = ConnectOptions::new(url);
+        let conn = sea_orm::Database::connect(opt).await
+            .map_err(|e| crate::error::VortexError::Internal(e.to_string()))?;
+
+        Ok(Self { conn, db_type: DbType::SQLite })
     }
 
     /// Access the underlying SeaORM connection
@@ -139,3 +168,4 @@ impl Database {
             .map_err(|e| crate::error::VortexError::Internal(e.to_string()))
     }
 }
+

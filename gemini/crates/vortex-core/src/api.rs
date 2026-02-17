@@ -95,6 +95,7 @@ pub struct AppState {
     pub runs: Arc<crate::run_repo::RunRepository>,
     pub tenants: Arc<crate::tenant_repo::TenantRepository>,
     pub authz: Arc<crate::authz::SpiceDbClient>,
+    pub mcp: Arc<crate::mcp_registry::McpRegistry>,
     /// Broadcast channel for WebSocket updates
     pub tx: broadcast::Sender<WsMessage>,
 }
@@ -106,6 +107,7 @@ impl AppState {
         runs: Arc<crate::run_repo::RunRepository>,
         tenants: Arc<crate::tenant_repo::TenantRepository>,
         authz: Arc<crate::authz::SpiceDbClient>,
+        mcp: Arc<crate::mcp_registry::McpRegistry>,
     ) -> Self {
         let (tx, _) = broadcast::channel(1024);
         Self {
@@ -114,6 +116,7 @@ impl AppState {
             runs,
             tenants,
             authz,
+            mcp,
             tx,
         }
     }
@@ -136,6 +139,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // Health check
         .route("/health", get(health_check))
         .route("/metrics", get(metrics))
+        // Nodes/Toolbox
+        .route("/api/nodes/mcp", get(list_mcp_nodes))
         // State
         .with_state(state)
 }
@@ -153,7 +158,7 @@ async fn submit_graph(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
-    
+
     let model = crate::entities::graph::Model {
         id: graph_id.clone(),
         tenant_id: "default".to_string(), // Placeholder until auth context
@@ -163,12 +168,12 @@ async fn submit_graph(
         created_at: now,
         updated_at: now,
     };
-    
+
     state.graphs.insert(model).await
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    
+
     tracing::info!("Graph {} submitted", graph_id);
-    
+
     Ok(Json(GraphResponse {
         graph_id,
         version: 1,
@@ -182,10 +187,10 @@ async fn get_graph(
     let graph = state.graphs.get_by_id(&id).await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound(format!("Graph {} not found", id)))?;
-    
+
     let json: serde_json::Value = serde_json::from_str(&graph.graph_json)
         .map_err(|e| AppError::Internal(e.to_string()))?;
-        
+
     Ok(Json(json))
 }
 
@@ -293,6 +298,13 @@ async fn cancel_run(
     Ok(StatusCode::OK)
 }
 
+/// GET /api/nodes/mcp - List all discovered MCP tools
+async fn list_mcp_nodes(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<vortex_protocol::graph::NodeDef>>, AppError> {
+    Ok(Json(state.mcp.list_node_defs()))
+}
+
 /// GET /health - Health check
 async fn health_check() -> impl IntoResponse {
     Json(serde_json::json!({
@@ -327,10 +339,10 @@ async fn handle_socket(
 ) {
     use axum::extract::ws::Message;
     use futures_util::{SinkExt, StreamExt};
-    
+
     let (mut sender, mut receiver) = socket.split();
     let mut rx = state.tx.subscribe();
-    
+
     // Send task - broadcasts to client
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
@@ -340,7 +352,7 @@ async fn handle_socket(
             }
         }
     });
-    
+
     // Receive task - handles pings
     let recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
@@ -349,7 +361,7 @@ async fn handle_socket(
             }
         }
     });
-    
+
     // Wait for either task to complete
     tokio::select! {
         _ = send_task => {},
@@ -376,12 +388,12 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL", msg),
         };
-        
+
         let body = Json(ErrorResponse {
             error: message,
             code: code.to_string(),
         });
-        
+
         (status, body).into_response()
     }
 }
@@ -401,16 +413,16 @@ mod tests {
             node_id: "node_1".to_string(),
             progress: 0.5,
         };
-        
+
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("Progress"));
         assert!(json.contains("0.5"));
     }
-    
+
     #[test]
     fn test_app_state_struct() {
         // Validation of AppState structure logic if needed
-        // Since we injected Arc repositories, simple instantiation without mocks 
+        // Since we injected Arc repositories, simple instantiation without mocks
         // is complex. We rely on integration tests for state verification.
     }
 }

@@ -27,3 +27,10 @@ accelerate>=0.27.0
 
 # GPU utilities
 nvidia-ml-py>=12.535.0
+
+# SageMaker Serving (Django/Ninja)
+django>=5.0.0
+django-ninja>=1.0.0
+gunicorn>=21.2.0
+# Secrets Management
+hvac>=2.1.0

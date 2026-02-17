@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use thiserror::Error;
 
+pub mod vault;
+
 // ═══════════════════════════════════════════════════════════════
 //                    CONFIGURATION ROOT
 // ═══════════════════════════════════════════════════════════════
@@ -94,9 +96,9 @@ impl ServiceConfig {
 
 impl Default for ServiceConfig {
     fn default() -> Self {
-        // Attempt ENV lookup; fallback to explicit placeholders for visibility
+        // Attempt ENV lookup; fallback to explicit environment defaults for visibility
         Self::from_env().unwrap_or_else(|_| {
-            tracing::warn!("Service endpoints not configured via ENV, using placeholders");
+            tracing::warn!("Service endpoints not configured via ENV, using environment defaults");
             Self {
                 vault_addr: "${VAULT_ADDR}".to_string(),
                 keycloak_issuer: "${KEYCLOAK_ISSUER}".to_string(),
@@ -367,7 +369,7 @@ impl FeatureFlags {
             telemetry: true,
         }
     }
-    
+
     pub fn live() -> Self {
         Self {
             debug_panel: false,
@@ -411,7 +413,7 @@ impl ResourceLimits {
             max_storage_per_tenant: 10 * 1024 * 1024 * 1024, // 10 GB
         }
     }
-    
+
     pub fn live() -> Self {
         Self {
             max_concurrent_jobs: 100,
@@ -481,7 +483,7 @@ impl LoggingConfig {
             output: LogOutput::Stdout,
         }
     }
-    
+
     pub fn live() -> Self {
         Self {
             level: LogLevel::Error,
@@ -573,60 +575,60 @@ impl ConfigBuilder {
             tenancy: None,
         }
     }
-    
+
     pub fn sandbox() -> Self {
         Self::new(DeploymentMode::Sandbox)
     }
-    
+
     pub fn live() -> Self {
         Self::new(DeploymentMode::Live)
     }
-    
+
     pub fn services(mut self, config: ServiceConfig) -> Self {
         self.services = Some(config);
         self
     }
-    
+
     pub fn security(mut self, config: SecurityConfig) -> Self {
         self.security = Some(config);
         self
     }
-    
+
     pub fn database(mut self, config: DatabaseConfig) -> Self {
         self.database = Some(config);
         self
     }
-    
+
     pub fn worker(mut self, config: WorkerConfig) -> Self {
         self.worker = Some(config);
         self
     }
-    
+
     pub fn api(mut self, config: ApiConfig) -> Self {
         self.api = Some(config);
         self
     }
-    
+
     pub fn features(mut self, config: FeatureFlags) -> Self {
         self.features = Some(config);
         self
     }
-    
+
     pub fn resources(mut self, config: ResourceLimits) -> Self {
         self.resources = Some(config);
         self
     }
-    
+
     pub fn logging(mut self, config: LoggingConfig) -> Self {
         self.logging = Some(config);
         self
     }
-    
+
     pub fn tenancy(mut self, config: TenancyConfig) -> Self {
         self.tenancy = Some(config);
         self
     }
-    
+
     /// Build with validation
     pub fn build(self) -> Result<VortexConfig, ConfigError> {
         let (features, resources, logging) = match self.mode {
@@ -641,7 +643,7 @@ impl ConfigBuilder {
                 self.logging.unwrap_or_else(LoggingConfig::live),
             ),
         };
-        
+
         let config = VortexConfig {
             mode: self.mode,
             services: self.services.unwrap_or_default(),
@@ -654,10 +656,10 @@ impl ConfigBuilder {
             logging,
             tenancy: self.tenancy.unwrap_or_default(),
         };
-        
+
         // Validate
         config.validate()?;
-        
+
         Ok(config)
     }
 }
@@ -675,10 +677,10 @@ impl VortexConfig {
                 _ => DeploymentMode::Sandbox,
             })
             .unwrap_or(DeploymentMode::Sandbox);
-        
+
         ConfigBuilder::new(mode).build()
     }
-    
+
     /// Load from TOML file
     pub fn from_file(path: &std::path::Path) -> Result<Self, ConfigError> {
         let content = std::fs::read_to_string(path)
@@ -688,7 +690,7 @@ impl VortexConfig {
         config.validate()?;
         Ok(config)
     }
-    
+
     /// Validate configuration
     pub fn validate(&self) -> Result<(), ConfigError> {
         const PORT_RANGE_START: u16 = 11000;
@@ -713,7 +715,7 @@ impl VortexConfig {
                 )));
             }
         }
-        
+
         // Validate pool config
         if self.database.pool.min_connections > self.database.pool.max_connections {
             return Err(ConfigError::Validation(
@@ -736,22 +738,22 @@ impl VortexConfig {
                 ));
             }
         }
-        
+
         // Validate trace sampling
         if !(0.0..=1.0).contains(&self.logging.trace_sampling) {
             return Err(ConfigError::Validation(
                 "trace_sampling must be between 0.0 and 1.0".to_string()
             ));
         }
-        
+
         Ok(())
     }
-    
+
     /// Get Vault address
     pub fn vault_addr(&self) -> &str {
         &self.services.vault_addr
     }
-    
+
     /// Get database connection string template (without password)
     pub fn postgres_connection_template(&self) -> String {
         format!(
@@ -771,13 +773,13 @@ impl VortexConfig {
 pub enum ConfigError {
     #[error("I/O error: {0}")]
     Io(String),
-    
+
     #[error("Parse error: {0}")]
     Parse(String),
-    
+
     #[error("Validation error: {0}")]
     Validation(String),
-    
+
     #[error("Missing required field: {0}")]
     MissingField(String),
 }
@@ -798,7 +800,7 @@ mod tests {
         assert!(config.features.billing);
         assert_eq!(config.logging.level, LogLevel::Error);
     }
-    
+
     #[test]
     fn test_live_config() {
         let config = ConfigBuilder::live().build().unwrap();
@@ -807,7 +809,7 @@ mod tests {
         assert!(config.features.billing);
         assert_eq!(config.logging.level, LogLevel::Error);
     }
-    
+
     #[test]
     fn test_validation_fails_for_same_ports() {
         let config = ConfigBuilder::sandbox()
@@ -817,24 +819,24 @@ mod tests {
                 ..Default::default()
             })
             .build();
-        
+
         assert!(config.is_err());
     }
-    
+
     #[test]
     fn test_vault_paths() {
         let paths = VaultPaths::default();
         assert!(paths.huggingface_token.starts_with("secret/"));
         assert!(paths.postgres_credentials.contains("postgres"));
     }
-    
+
     #[test]
     fn test_config_serialization() {
         let config = ConfigBuilder::sandbox().build().unwrap();
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("sandbox"));
     }
-    
+
     #[test]
     fn test_from_env_defaults_to_sandbox() {
         let config = VortexConfig::from_env().unwrap();

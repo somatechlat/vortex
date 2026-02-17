@@ -8,61 +8,60 @@
 // Scaffold phase: allow dead_code until all modules are connected
 #![allow(dead_code, unused_variables, unused_imports, clippy::new_without_default)]
 #![allow(unexpected_cfgs)]
-//!
-//! # Architecture
-//!
-//! ```text
-//! ┌─────────────┐     ┌─────────────┐
-//! │  Frontend   │────▶│  API Layer  │
-//! │  (Svelte)   │     │  (HTTP/WS)  │
-//! └─────────────┘     └──────┬──────┘
-//!                            │
-//!                     ┌──────▼──────┐
-//!                     │ Core Engine │
-//!                     │  (Salsa DB) │
-//!                     └──────┬──────┘
-//!                            │
-//!              ┌─────────────┼─────────────┐
-//!              │             │             │
-//!       ┌──────▼──────┐ ┌────▼────┐ ┌──────▼──────┐
-//!       │  Scheduler  │ │ Arbiter │ │ Supervisor  │
-//!       │  (Kahn's)   │ │  (LFU)  │ │  (fork/IPC) │
-//!       └─────────────┘ └─────────┘ └──────┬──────┘
-//!                                          │
-//!                                   ┌──────▼──────┐
-//!                                   │   Worker    │
-//!                                   │  (Python)   │
-//!                                   └─────────────┘
-//! ```
+
+// ═══════════════════════════════════════════════════════════════
+// Core Modules
+// ═══════════════════════════════════════════════════════════════
 
 pub mod error;
+pub mod config;
+
+// ═══════════════════════════════════════════════════════════════
+// Data Models & Protocols
+// ═══════════════════════════════════════════════════════════════
+
 pub mod graph;
+pub mod serialization;
+pub mod shm;
+
+// ═══════════════════════════════════════════════════════════════
+// Execution & Scheduling
+// ═══════════════════════════════════════════════════════════════
+
 pub mod scheduler;
 pub mod arbiter;
-pub mod ipc;
-pub mod shm;
 pub mod supervisor;
+pub mod execution;
+
+// ═══════════════════════════════════════════════════════════════
+// IPC & Networking
+// ═══════════════════════════════════════════════════════════════
+
+pub mod ipc;
+
+// ═══════════════════════════════════════════════════════════════
+// Database & Persistence
+// ═══════════════════════════════════════════════════════════════
+
 pub mod db;
-pub mod api;
 pub mod entities;
-pub mod config;
-pub mod tenant;
-pub mod authz;
 pub mod tenant_repo;
 pub mod graph_repo;
 pub mod run_repo;
+pub mod tenant;
+
+// ═══════════════════════════════════════════════════════════════
+// API & Web Services
+// ═══════════════════════════════════════════════════════════════
+
+pub mod authz;
+pub mod api;
 pub mod server;
-pub mod execution;
-pub mod serialization;  // NEW: DLPack zero-copy tensors
+pub mod mcp_registry;
+pub mod units;
 
-// Re-export centralized config from vortex-config crate
-pub use vortex_config::{VortexConfig, DeploymentMode, FeatureFlags, ResourceLimits, LoggingConfig};
+// ═══════════════════════════════════════════════════════════════
+// Monitoring
+// ═══════════════════════════════════════════════════════════════
 
-// Re-export common types
-pub use error::{VortexError, VortexResult};
-pub use graph::{GraphDSL, Node, NodeID, Link};
-pub use scheduler::Scheduler;
-pub use arbiter::Arbiter;
-pub use supervisor::Supervisor;
-pub use execution::ExecutionContext;
-pub use serialization::{Tensor, TensorFactory, ShmTensor, DeviceType};
+pub mod metrics;

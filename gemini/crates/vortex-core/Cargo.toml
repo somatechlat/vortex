@@ -10,6 +10,7 @@ description = "Core engine for VORTEX-GEN 3.0"
 vortex-protocol = { path = "../vortex-protocol" }
 vortex-telemetry = { path = "../vortex-telemetry" }
 vortex-config = { path = "../vortex-config" }
+vortex-mcp = { path = "../vortex-mcp" }
 
 # Async Runtime
 tokio.workspace = true

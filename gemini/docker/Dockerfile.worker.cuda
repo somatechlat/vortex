@@ -1,0 +1,58 @@
+# VORTEX Worker - Production GPU Image
+# Target: AWS g5.xlarge (NVIDIA A10G) / g6.xlarge (L40S)
+# Base: NVIDIA CUDA 12.1 + Ubuntu 22.04
+
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+# Core Environment
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    VORTEX_MODE=live \
+    # PyTorch memory optimization
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3-pip \
+    python3-dev \
+    git \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install PyTorch with CUDA support
+RUN pip3 install --no-cache-dir torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu121
+
+# Install VORTEX dependencies
+# Copy only requirements first to cache layer
+COPY gemini/worker/requirements.live.txt /app/requirements.txt
+RUN pip3 install --no-cache-dir -r /app/requirements.txt
+
+# Copy worker source code
+WORKDIR /app
+COPY gemini/worker/ /app/worker/
+
+# Install the worker package
+RUN pip3 install -e /app/worker
+
+# Create non-root user for security
+RUN useradd -m -u 1000 vortex
+RUN chown -R vortex:vortex /app
+USER vortex
+
+# Expose ports (although worker connects outbound usually)
+# If using direct connect mode:
+EXPOSE 11190
+
+# SageMaker expects port 8080
+EXPOSE 8080
+
+# Run Gunicorn/Flask Server
+ENTRYPOINT ["gunicorn", "--bind", "0.0.0.0:8080", "--timeout", "900", "--workers", "1", "vortex_worker.serve:application"]
+CMD ["--slot-id", "0", "--shm-name", "/dev/shm/vortex-0", "--ipc-path", "/tmp/vortex.sock"]

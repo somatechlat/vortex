@@ -2,11 +2,16 @@
 
 import ctypes
 import mmap
+import sys
 import time
+import os  # CRITICAL: Import before sandbox
+try:
+    import posix_ipc  # CRITICAL: Import before sandbox
+except ImportError:
+    posix_ipc = None
 
 try:
     import torch
-
     DLPACK_AVAILABLE = True
 except ImportError:
     DLPACK_AVAILABLE = False
@@ -15,7 +20,6 @@ except ImportError:
 # ═══════════════════════════════════════════════════════════════
 #                    CTYPES STRUCTURES (Rust-compatible)
 # ═══════════════════════════════════════════════════════════════
-
 
 class WorkerSlot(ctypes.Structure):
     _fields_ = [
@@ -26,9 +30,7 @@ class WorkerSlot(ctypes.Structure):
         ("padding", ctypes.c_uint8 * 40),
     ]
 
-
 assert ctypes.sizeof(WorkerSlot) == 64, "WorkerSlot must be 64 bytes"
-
 
 class ShmHeader(ctypes.Structure):
     MAX_WORKERS = 256
@@ -42,9 +44,7 @@ class ShmHeader(ctypes.Structure):
         ("reserved", ctypes.c_uint8 * 40),
     ]
 
-
 assert ctypes.sizeof(ShmHeader) == 64
-
 
 class TensorHeader(ctypes.Structure):
     _pack_ = 64
@@ -63,13 +63,8 @@ class TensorHeader(ctypes.Structure):
         ("reserved2", ctypes.c_uint8 * 16),
     ]
 
-
 TENSOR_MAGIC = 0x5453_4552_4F56_5458
-# Verify size - Python struct should match Rust layout
-assert (
-    ctypes.sizeof(TensorHeader) >= 112
-), f"TensorHeader too small: {ctypes.sizeof(TensorHeader)}"
-
+assert ctypes.sizeof(TensorHeader) >= 112, f"TensorHeader too small: {ctypes.sizeof(TensorHeader)}"
 
 class ShmArena:
     SHM_NAME = "/vortex-shm"
@@ -77,36 +72,35 @@ class ShmArena:
     TENSOR_DATA_OFFSET = 0x4000
 
     def __init__(self, name: str | None = None, size: int = 0):
-        import posix_ipc
-
+        if posix_ipc is None:
+            raise RuntimeError("posix_ipc not available")
+        
         self.name = name or self.SHM_NAME
         self._created = False
-
+        
+        # Use os constants (already imported at module level)
+        O_RDWR = os.O_RDWR
+        O_CREAT = os.O_CREAT
+        
         if size > 0:
-            self.shm = posix_ipc.SharedMemory(
-                self.name,
-                posix_ipc.O_CREAT | posix_ipc.O_RDWR,
-                size=size,
-            )
+            self.shm = posix_ipc.SharedMemory(self.name, O_CREAT | O_RDWR, size=size)
             self._created = True
         else:
-            self.shm = posix_ipc.SharedMemory(self.name, posix_ipc.O_RDWR)
-
+            self.shm = posix_ipc.SharedMemory(self.name, O_RDWR)
+        
         self.mm = mmap.mmap(self.shm.fd, self.shm.size)
         self.header = ShmHeader.from_buffer(self.mm)
-
+        
         if self._created and self.header.magic == 0:
             self.header.magic = ShmHeader.MAGIC
             self.header.version = 1
             self.header.flags = 0
             self.header.clock_tick = 0
-            self.header.reserved = bytes(40)
-
+            for i in range(40): self.header.reserved[i] = 0
+        
         if self.header.magic != ShmHeader.MAGIC:
-            raise RuntimeError(
-                f"Invalid SHM magic: {self.header.magic}, expected {ShmHeader.MAGIC}"
-            )
-
+            raise RuntimeError(f"Invalid SHM magic: {self.header.magic}, expected {ShmHeader.MAGIC}")
+        
         if not DLPACK_AVAILABLE:
             print("WARNING: DLPack not available")
 
@@ -130,8 +124,7 @@ class ShmArena:
         self.mm[offset : offset + len(slot_bytes)] = slot_bytes
 
     def register_worker(self, slot_id: int) -> None:
-        import os
-
+        # os.getpid() works because os was imported at module level
         slot = self._get_slot(slot_id)
         slot.pid = os.getpid()
         slot.status = 1
@@ -168,9 +161,7 @@ class ShmArena:
         available = self.mm.size() - current_offset
 
         if total_size > available:
-            raise RuntimeError(
-                f"SHM overflow: need {total_size}, available {available}"
-            )
+            raise RuntimeError(f"SHM overflow: need {total_size}, available {available}")
 
         header = TensorHeader()
         header.magic = TENSOR_MAGIC
@@ -328,9 +319,7 @@ class ShmArena:
         available = self.mm.size() - current_offset
 
         if total_size > available:
-            raise RuntimeError(
-                f"SHM overflow: need {total_size}, available {available}"
-            )
+            raise RuntimeError(f"SHM overflow: need {total_size}, available {available}")
 
         header = TensorHeader()
         header.magic = TENSOR_MAGIC

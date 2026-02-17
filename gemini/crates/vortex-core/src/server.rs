@@ -25,6 +25,7 @@ pub struct VortexServer {
     run_repo: Arc<RunRepository>,
     tenant_repo: Arc<TenantRepository>,
     authz: Arc<SpiceDbClient>,
+    mcp: Arc<crate::mcp_registry::McpRegistry>,
 }
 
 impl VortexServer {
@@ -38,12 +39,16 @@ impl VortexServer {
         // SpiceDB client
         let authz = Arc::new(SpiceDbClient::from_env()?);
 
+        // MCP Toolbox Registry
+        let mcp = Arc::new(crate::mcp_registry::McpRegistry::new());
+
         Ok(Self {
             db,
             graph_repo,
             run_repo,
             tenant_repo,
             authz,
+            mcp,
         })
     }
 
@@ -55,6 +60,7 @@ impl VortexServer {
             self.run_repo.clone(),
             self.tenant_repo.clone(),
             self.authz.clone(),
+            self.mcp.clone(),
         ));
         create_router(state)
     }
@@ -90,10 +96,10 @@ impl VortexServer {
 /// Start VORTEX server (called from main.rs)
 pub async fn start_server() -> VortexResult<()> {
     let config = Arc::new(vortex_config::VortexConfig::from_env().map_err(|e| VortexError::Internal(e.to_string()))?);
-    
+
     // Resilient Connection
     let db = Arc::new(Database::connect(&config).await?);
-    
+
     // Smart Migration (vortex-core init)
     db.init(true).await?;
 
