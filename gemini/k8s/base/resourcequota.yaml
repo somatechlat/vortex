@@ -2,7 +2,7 @@
 # VORTEX Kubernetes Resource Quota
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# ⚠️  DEPLOYMENT STACK: Colima + Minikube + Tilt (NO DOCKER DESKTOP)
+# DEPLOYMENT STACK: Colima + Minikube + Tilt (NO DOCKER DESKTOP)
 #
 # FIXED LIMITS - DO NOT EXCEED:
 #   - Memory: 10GB total for vortex namespace (8GB requests, 10GB limits)
@@ -34,4 +34,3 @@ spec:
     services: "10"
     configmaps: "20"
     secrets: "20"
-

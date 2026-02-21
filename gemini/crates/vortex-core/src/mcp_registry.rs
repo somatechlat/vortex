@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use dashmap::DashMap;
-use vortex_mcp::{McpClient, McpToolMapper, McpTool};
+use vortex_mcp::{McpClient, McpToolMapper};
 use vortex_protocol::graph::NodeDef;
-use parking_lot::RwLock;
+use crate::error::VortexResult;
 
 /// Manages dynamically discovered MCP tools and their Vortex NodeDefs.
 pub struct McpRegistry {
@@ -44,7 +44,7 @@ impl McpRegistry {
     }
 
     /// Register a new MCP client and discover its tools.
-    pub async fn add_client(&self, id: &str, client: Arc<dyn McpClient>) -> crate::error::Result<()> {
+    pub async fn add_client(&self, id: &str, client: Arc<dyn McpClient>) -> VortexResult<()> {
         let tools = client.list_tools().await
             .map_err(|e| crate::error::VortexError::IpcFailure { reason: e.to_string() })?;
 

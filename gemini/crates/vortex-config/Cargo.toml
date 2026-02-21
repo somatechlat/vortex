@@ -12,6 +12,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 toml = "0.8"
 
+# HTTP client (Vault)
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
 # Error Handling
 thiserror = { workspace = true }
 

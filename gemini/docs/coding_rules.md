@@ -7,7 +7,7 @@
 
 You are about to work on the VORTEX project. Before ANY coding, analysis, planning, or documentation, you MUST follow these Vibe Coding Rules exactly, with ZERO exceptions.
 
-## 🎭 Required Personas
+## Persona Required Personas
 
 You will act simultaneously as ALL of these personas at ALL times:
 
@@ -24,36 +24,36 @@ You will act simultaneously as ALL of these personas at ALL times:
 
 ---
 
-## ⚡ VIBE CODING RULES
+## Rules VIBE CODING RULES
 
 ### Rule 1: NO BULLSHIT
-- ❌ NO lies, NO guesses, NO invented APIs, NO "it probably works"
-- ❌ NO mocks, NO placeholders, NO stubs, NO TODOs, NO fake functions
-- ❌ NO hype language ("perfect", "flawless", "amazing") unless truly warranted
-- ✅ Say EXACTLY what is true. If something might break → SAY SO
+- Reject NO lies, NO guesses, NO invented APIs, NO "it probably works"
+- Reject NO mocks, NO placeholders, NO stubs, NO TODOs, NO fake functions
+- Reject NO hype language ("perfect", "flawless", "amazing") unless truly warranted
+- Complete Say EXACTLY what is true. If something might break → SAY SO
 
 ### Rule 2: CHECK FIRST, CODE SECOND
-- ✅ ALWAYS review existing architecture and files BEFORE writing code
-- ✅ ALWAYS request missing files BEFORE touching anything
-- ❌ NEVER assume a file "probably exists" — ASK
-- ❌ NEVER assume an implementation "likely works" — VERIFY
+- Complete ALWAYS review existing architecture and files BEFORE writing code
+- Complete ALWAYS request missing files BEFORE touching anything
+- Reject NEVER assume a file "probably exists" — ASK
+- Reject NEVER assume an implementation "likely works" — VERIFY
 
 ### Rule 3: NO UNNECESSARY FILES
-- ✅ Modify existing files unless a new file is absolutely unavoidable
-- ❌ NO file-splitting unless justified with evidence
-- ✅ Simplicity > Complexity
+- Complete Modify existing files unless a new file is absolutely unavoidable
+- Reject NO file-splitting unless justified with evidence
+- Complete Simplicity > Complexity
 
 ### Rule 4: REAL IMPLEMENTATIONS ONLY
-- ✅ Everything must be fully functional production-grade code
-- ❌ NO fake returns, NO hardcoded values, NO temporary hacks
-- ✅ Test data must be clearly marked as test data
+- Complete Everything must be fully functional production-grade code
+- Reject NO fake returns, NO hardcoded values, NO temporary hacks
+- Complete Test data must be clearly marked as test data
 
 ### Rule 5: DOCUMENTATION = TRUTH
-- ✅ ALWAYS read documentation proactively when relevant
-- ✅ Use tools (search, fetch) to obtain real docs
-- ❌ NEVER invent API syntax or behavior
-- ✅ Cite documentation: "According to the docs at <URL>…"
-- ✅ If you can't access docs, SAY SO — DO NOT GUESS
+- Complete ALWAYS read documentation proactively when relevant
+- Complete Use tools (search, fetch) to obtain real docs
+- Reject NEVER invent API syntax or behavior
+- Complete Cite documentation: "According to the docs at <URL>…"
+- Complete If you can't access docs, SAY SO — DO NOT GUESS
 
 ### Rule 6: COMPLETE CONTEXT REQUIRED
 Before modifying code, you MUST understand:
@@ -66,24 +66,24 @@ Before modifying code, you MUST understand:
 **If ANY context is missing → ASK FIRST**
 
 ### Rule 7: REAL DATA & SERVERS ONLY
-- ✅ Use real data structures when available
-- ✅ Request real samples if needed
-- ✅ Verify API responses from actual docs or servers
-- ❌ NO assumptions, NO "expected JSON", NO hallucinated structures
+- Complete Use real data structures when available
+- Complete Request real samples if needed
+- Complete Verify API responses from actual docs or servers
+- Reject NO assumptions, NO "expected JSON", NO hallucinated structures
 
 ### Rule 8: PROFESSIONAL CODE COMMENTS ONLY
-- ✅ Comments must be concise, technical, and add value
-- ✅ Use industry-standard terminology
-- ✅ Document WHY, not just WHAT
-- ❌ NO "AI slop" - vague, verbose, or filler comments
-- ❌ NO obvious comments ("increment counter", "return result")
-- ❌ NO self-congratulatory or hype comments
-- ❌ NO ASCII art or decorative comments (except section headers)
+- Complete Comments must be concise, technical, and add value
+- Complete Use industry-standard terminology
+- Complete Document WHY, not just WHAT
+- Reject NO "low-quality" - vague, verbose, or filler comments
+- Reject NO obvious comments ("increment counter", "return result")
+- Reject NO self-congratulatory or hype comments
+- Reject NO ASCII art or decorative comments (except section headers)
 
-**Examples of BAD comments (AI slop):**
+**Examples of BAD comments (low-quality):**
 ```rust
 // This function does the thing that needs to be done
-// Here we process the data in a beautiful way
+// Here we process the data in a vague way
 // Magic happens here!
 ```
 
@@ -95,16 +95,16 @@ Before modifying code, you MUST understand:
 ```
 
 ### Rule 9: CENTRALIZED CONFIGURATION
-- ✅ ALL settings in one place (vortex-config crate)
-- ✅ ALL secrets in Vault - NEVER in environment variables
-- ✅ Environment variables for non-secret operational settings only
-- ❌ NO hardcoded URLs, tokens, or credentials
-- ❌ NO scattered .env files with secrets
- - ✅ Development must mirror production behavior; only local resource limits may differ
+- Complete ALL settings in one place (vortex-config crate)
+- Complete ALL secrets in Vault - NEVER in environment variables
+- Complete Environment variables for non-secret operational settings only
+- Reject NO hardcoded URLs, tokens, or credentials
+- Reject NO scattered .env files with secrets
+ - Complete Development must mirror production behavior; only local resource limits may differ
 
 ---
 
-## 🔍 STANDARD WORKFLOW
+## Review STANDARD WORKFLOW
 
 ### Step 1: UNDERSTAND
 - Read the request carefully
@@ -150,7 +150,7 @@ Before touching code, confirm:
 
 ---
 
-## ❌ I WILL NEVER
+## Reject I WILL NEVER
 
 - Invent APIs or syntax
 - Guess behavior
@@ -168,7 +168,7 @@ Before touching code, confirm:
 
 ---
 
-## ✅ I WILL ALWAYS
+## Complete I WILL ALWAYS
 
 - Request missing files
 - Verify all information
@@ -183,7 +183,7 @@ Before touching code, confirm:
 
 ---
 
-## 🦀 VORTEX TECHNOLOGY STACK
+## Rust VORTEX TECHNOLOGY STACK
 
 ### Rule 8: Core Framework Policy
 | Component | Requirement |
@@ -202,6 +202,12 @@ Before touching code, confirm:
 | **Rendering** | WebGL2 for >1000 nodes @ 60fps |
 | **Collaboration** | Yjs CRDT for real-time multi-user sync |
 | **State** | Svelte Runes (`$state`, `$derived`) |
+
+### Rule 9.1: JavaScript Package Manager Policy (MANDATORY)
+- Complete Use `bun` for all JavaScript/TypeScript dependency management and script execution
+- Complete Use `bun install`, `bun run <script>`, and `bunx` for one-off tooling
+- Reject Do not use `npm` in this repository
+- Reject Do not commit `package-lock.json`
 
 ### Rule 25: Port Authority (CRITICAL)
 **All VORTEX services MUST use ports in the 11000-11999 range to avoid conflicts.**
@@ -223,12 +229,12 @@ Before touching code, confirm:
 | `11190-11199` | Monitoring/Debug |
 
 **Why 11000 range?**
-- ❌ Avoids `80`, `443` (HTTP/HTTPS)
-- ❌ Avoids `3000-3999` (React, Node dev servers)
-- ❌ Avoids `5000-5999` (Flask, common dev)
-- ❌ Avoids `8000-8999` (Django, common servers)
-- ❌ Avoids `9000-9999` (PHP, monitoring)
-- ✅ `11000-11999` is uncommonly used, enterprise-safe
+- Reject Avoids `80`, `443` (HTTP/HTTPS)
+- Reject Avoids `3000-3999` (React, Node dev servers)
+- Reject Avoids `5000-5999` (Flask, common dev)
+- Reject Avoids `8000-8999` (Django, common servers)
+- Reject Avoids `9000-9999` (PHP, monitoring)
+- Complete `11000-11999` is uncommonly used, enterprise-safe
 
 ### Rule 10: Data & State Policy
 | Component | Requirement |
@@ -372,11 +378,11 @@ All styling MUST use CSS custom properties (design tokens):
 **Svelte Component Scoping:**
 ```svelte
 <style>
-  /* ✅ Scoped by default in Svelte */
+  /* Complete Scoped by default in Svelte */
   .node { background: var(--vtx-bg-secondary); }
   .node--selected { border-color: var(--vtx-accent); }
   
-  /* ❌ NEVER use global unless absolutely required */
+  /* Reject NEVER use global unless absolutely required */
   :global(.special-case) { /* Document why */ }
 </style>
 ```
@@ -417,11 +423,11 @@ All styling MUST use CSS custom properties (design tokens):
 
 **Test Selector Convention:**
 ```svelte
-<!-- ✅ ALWAYS use data-testid -->
+<!-- Complete ALWAYS use data-testid -->
 <button data-testid="queue-button">Queue</button>
 <div data-testid="node-{nodeId}">...</div>
 
-<!-- ❌ NEVER rely on class names or text content -->
+<!-- Reject NEVER rely on class names or text content -->
 ```
 
 **Core Test Commands:**
@@ -468,10 +474,10 @@ We **ONLY** follow ISO-style structure because it produces the clearest and most
 | **Production** | End-user deployment | `VORTEX_ENV=production`, optimized |
 
 **Configuration Policy:**
-- ✅ All config via environment variables (12-factor app)
-- ✅ Use `.env.example` as template — never commit `.env`
-- ✅ Secrets only via Vault paths, never hardcoded
-- ❌ NO environment-specific code branches (use config only)
+- Complete All config via environment variables (12-factor app)
+- Complete Use `.env.example` as template — never commit `.env`
+- Complete Secrets only via Vault paths, never hardcoded
+- Reject NO environment-specific code branches (use config only)
 
 ### Rule 16: Build & Release Policy
 | Requirement | Details |
@@ -687,4 +693,4 @@ kubectl top pods -n vortex-dev
 
 **Last Updated**: 2026-01-06  
 **Total SRS Lines**: 8,694  
-**Status**: Ready for Implementation 🚀
+**Status**: Ready for Implementation 

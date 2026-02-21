@@ -135,11 +135,11 @@ def example_soma_agent_workflow():
     print("\n1. Checking VORTEX system...")
     try:
         info = connector.get_system_info()
-        print(f"   ✅ VORTEX v{info['version']} running")
-        print(f"   ✅ Uptime: {info['uptime_seconds']}s")
-        print(f"   ✅ Workers: {info['workers']}")
+        print(f"   VORTEX v{info['version']} running")
+        print(f"   Uptime: {info['uptime_seconds']}s")
+        print(f"   Workers: {info['workers']}")
     except Exception as e:
-        print(f"   ❌ VORTEX not available: {e}")
+        print(f"   VORTEX not available: {e}")
         print("\n   Starting VORTEX first: cargo run --bin vortex-core")
         return
     
@@ -147,7 +147,7 @@ def example_soma_agent_workflow():
     if info['workers'] == 0:
         print("\n2. Spawning worker...")
         connector.spawn_worker(0)
-        print("   ✅ Worker spawned")
+        print("   Worker spawned")
         import time
         time.sleep(1)
     
@@ -172,7 +172,7 @@ def example_soma_agent_workflow():
     example_graph = {
         "nodes": [
             {"id": "load", "type": "Loader::Checkpoint", "params": {"model_id": "stabilityai/sdxl"}},
-            {"id": "encode", "type": "Encoder::CLIP", "params": {"text": "a beautiful landscape"}},
+            {"id": "encode", "type": "Encoder::CLIP", "params": {"text": "a landscape"}},
             {"id": "sample", "type": "Sampler::KSampler", "params": {"steps": 20}},
             {"id": "decode", "type": "Decoder::VAE", "params": {}}
         ],
@@ -185,12 +185,12 @@ def example_soma_agent_workflow():
     
     try:
         graph_response = connector.submit_graph(example_graph)
-        print(f"   ✅ Graph submitted: {graph_response['graph_id']}")
+        print(f"   Graph submitted: {graph_response['graph_id']}")
         
         # Execute the graph
         execute_response = connector.execute_graph(graph_response['graph_id'])
-        print(f"   ✅ Execution started: {execute_response['run_id']}")
-        print(f"   ⏱️  Estimated time: {execute_response['estimated_time_ms']}ms")
+        print(f"   Execution started: {execute_response['run_id']}")
+        print(f"   Estimated time: {execute_response['estimated_time_ms']}ms")
         
     except Exception as e:
         print(f"   Note: Full graph execution requires database: {e}")
@@ -202,7 +202,7 @@ def example_soma_agent_workflow():
     print(metrics[:500] + "..." if len(metrics) > 500 else metrics)
     
     print("\n" + "="*70)
-    print("✅ Integration test complete!")
+    print("Integration test complete.")
     print("="*70)
 
 

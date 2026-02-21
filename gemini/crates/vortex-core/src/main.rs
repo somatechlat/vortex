@@ -8,11 +8,12 @@ use vortex_core::error::VortexResult;
 #[tokio::main]
 async fn main() -> VortexResult<()> {
     // 1. Initialize Tracing
+    let mut env_filter = tracing_subscriber::EnvFilter::from_default_env();
+    if let Ok(directive) = "vortex=info".parse() {
+        env_filter = env_filter.add_directive(directive);
+    }
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("vortex=info".parse().unwrap())
-        )
+        .with_env_filter(env_filter)
         .init();
 
     tracing::info!("Starting VORTEX Core Engine (Native Mode)");

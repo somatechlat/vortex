@@ -3,7 +3,7 @@
 ## **Executive Summary**
 
 The generative AI landscape has undergone a seismic shift with the democratization of diffusion models, and within this ecosystem, ComfyUI has emerged as the preeminent interface for power users. Its node-based architecture, which exposes the raw graph execution pipeline of Stable Diffusion, has allowed for a level of granular control and experimental flexibility that "one-click" interfaces cannot match. It has become the de facto standard for workflow sharing, custom node development, and rapid prototyping of new generative techniques. However, this meteoric rise, driven largely by organic community contributions, has resulted in a software architecture that is straining under the weight of its own success. As workflows evolve from simple text-to-image linear pipelines into complex, cyclic, and agentic graphs comprising thousands of nodes, the limitations of ComfyUI’s foundational technologies—specifically its recursive Python execution model and its legacy LiteGraph.js frontend—have crystallized into critical bottlenecks that hinder performance, stability, and scalability.  
-This report presents a rigorous architectural analysis of the existing ComfyUI framework and proposes a comprehensive specification for a "revolutionary clone"—referred to herein as **ComfyNext**. This proposed architecture moves beyond incremental improvements, advocating for a fundamental paradigm shift: decoupling the execution engine from the node definitions, transitioning the orchestration layer to a high-performance system language (Rust), and rebuilding the user interface upon modern, GPU-accelerated web technologies capable of handling massive graph complexity with semantic depth. The analysis draws upon extensive research into the current codebase, community feedback regarding performance and usability, and broader software engineering principles relevant to graph processing and visual programming.  
+This report presents a rigorous architectural analysis of the existing ComfyUI framework and proposes a comprehensive specification for a "advanced clone"—referred to herein as **ComfyNext**. This proposed architecture moves beyond incremental improvements, advocating for a fundamental paradigm shift: decoupling the execution engine from the node definitions, transitioning the orchestration layer to a high-performance system language (Rust), and rebuilding the user interface upon modern, GPU-accelerated web technologies capable of handling massive graph complexity with semantic depth. The analysis draws upon extensive research into the current codebase, community feedback regarding performance and usability, and broader software engineering principles relevant to graph processing and visual programming.  
 The following comprehensive report is divided into several primary sections: a forensic deconstruction of the current architecture's failures, a detailed technical specification for a Rust-based backend utilizing incremental computation patterns, a design manifesto for a Svelte-based frontend that prioritizes accessibility and collaboration, and a strategic roadmap for migration. The objective is to define a system that not only resolves current frustrations—such as memory leaks, UI lag, and race conditions—but also lays the groundwork for the next era of generative AI: autonomous, self-healing, and multi-modal agentic workflows.
 
 ## ---
@@ -56,7 +56,7 @@ In professional production environments, this lack of **Multiplayer** capability
 
 **Part II: The Backend Revolution – Rust, PyO3, and The Salsa Architecture**
 
-To build a truly revolutionary clone, we must fundamentally divorce the *orchestration* of the workflow from the *execution* of the atomic tasks. While Python is non-negotiable for the actual AI model operations—due to the massive ecosystem of PyTorch, diffusers, and custom nodes—it is suboptimal for the graph engine itself. Python's Global Interpreter Lock (GIL) and runtime overhead make it a poor choice for managing the complex state logic, high-concurrency I/O, and massive dependency graphs of a next-generation tool.  
+To build a truly advanced clone, we must fundamentally divorce the *orchestration* of the workflow from the *execution* of the atomic tasks. While Python is non-negotiable for the actual AI model operations—due to the massive ecosystem of PyTorch, diffusers, and custom nodes—it is suboptimal for the graph engine itself. Python's Global Interpreter Lock (GIL) and runtime overhead make it a poor choice for managing the complex state logic, high-concurrency I/O, and massive dependency graphs of a next-generation tool.  
 **Recommendation:** The ComfyNext architecture centers on a **Rust-based Host** acting as the graph supervisor, utilizing **PyO3** to bind to persistent Python workers.
 
 ### **2.1 The Case for Rust in Orchestration**
@@ -99,7 +99,7 @@ One of the most persistent issues in the current ComfyUI is the "Out of Memory" 
 
 **Part III: The Frontend Overhaul – Performance, Semantics, and Collaboration**
 
-The user interface is the lens through which the user interacts with the underlying logic. A backend overhaul is meaningless if the user is still interacting with a sluggish, unintuitive canvas. The "revolutionary" aspect of ComfyNext comes from applying **Game Engine** design principles to the web-based node editor.
+The user interface is the lens through which the user interacts with the underlying logic. A backend overhaul is meaningless if the user is still interacting with a sluggish, unintuitive canvas. The "advanced" aspect of ComfyNext comes from applying **Game Engine** design principles to the web-based node editor.
 
 ### **3.1 Framework Selection: The Battle for the Canvas**
 
@@ -117,7 +117,7 @@ To select the foundation for the new frontend, we analyzed the leading candidate
 
 #### **3.1.3 Recommendation: GPU-Accelerated Svelte Flow**
 
-For a "revolutionary" clone, **Svelte Flow** is the superior choice for the base application logic due to its raw performance characteristics.30 However, standard DOM rendering hits a hard limit at around 2,000-3,000 nodes. To support massive, "god-mode" workflows, we must utilize a **Hybrid Rendering Pattern**. The static connections (edges) and the background grid are rendered using a **WebGL Renderer** layer (via libraries like Pixi.js or Regl). The Nodes themselves—which require text selection, inputs, and accessibility—remain HTML/CSS elements synced to the WebGL layer. This provides the performance "snap" of a game engine for the heavy graphical elements (thousands of wires) while retaining the accessibility and ease of styling of the DOM for the interactive elements.
+For a "advanced" clone, **Svelte Flow** is the superior choice for the base application logic due to its raw performance characteristics.30 However, standard DOM rendering hits a hard limit at around 2,000-3,000 nodes. To support massive, "god-mode" workflows, we must utilize a **Hybrid Rendering Pattern**. The static connections (edges) and the background grid are rendered using a **WebGL Renderer** layer (via libraries like Pixi.js or Regl). The Nodes themselves—which require text selection, inputs, and accessibility—remain HTML/CSS elements synced to the WebGL layer. This provides the performance "snap" of a game engine for the heavy graphical elements (thousands of wires) while retaining the accessibility and ease of styling of the DOM for the interactive elements.
 
 ### **3.2 UX Paradigm: Semantic Zoom and "The God View"**
 
@@ -213,7 +213,7 @@ The current UI is largely inaccessible to users relying on keyboard navigation o
 
 #### **6.1.2 The "No-Code" vs. "Low-Code" Tension**
 
-ComfyUI sits in an awkward middle ground. It requires understanding of technical concepts (latents, tensors) but presents them in a visual format. A "revolutionary" UI must bridge this gap by offering **Abstraction Layers**.
+ComfyUI sits in an awkward middle ground. It requires understanding of technical concepts (latents, tensors) but presents them in a visual format. A "advanced" UI must bridge this gap by offering **Abstraction Layers**.
 
 ### **6.2 The ComfyNext Interface Design**
 

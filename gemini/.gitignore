@@ -95,3 +95,4 @@ models/
 logs/
 tmp/
 temp/
+test-results/

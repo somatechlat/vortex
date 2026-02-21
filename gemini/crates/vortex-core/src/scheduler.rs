@@ -129,7 +129,9 @@ impl SchedulerTrait for Scheduler {
         let type_errors = self.validate_types(graph);
         if !type_errors.is_empty() {
             // Return the first type error
-            return Err(type_errors.into_iter().next().unwrap());
+            let first = type_errors.into_iter().next()
+                .ok_or_else(|| VortexError::Internal("type_errors unexpectedly empty".to_string()))?;
+            return Err(first);
         }
         
         // Then perform topological sort

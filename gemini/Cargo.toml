@@ -56,8 +56,10 @@ prost = "0.12"
 prost-types = "0.12"
 
 # Telemetry
-opentelemetry = "0.21"
+opentelemetry = { version = "0.21", features = ["trace"] }
 opentelemetry-otlp = "0.14"
+opentelemetry_sdk = { version = "0.21", features = ["rt-tokio", "trace"] }
+tracing-opentelemetry = "0.22"
 
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "macros", "json", "chrono", "uuid"] }

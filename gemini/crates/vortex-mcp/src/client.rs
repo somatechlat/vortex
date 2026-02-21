@@ -5,7 +5,8 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::Mutex;
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use crate::error::{McpError, McpResult};
+use crate::error::McpError;
+use crate::McpResult;
 
 /// MCP Client interface for tool discovery and execution.
 #[async_trait]

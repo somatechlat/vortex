@@ -7,7 +7,10 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get the workspace root (two levels up from this crate)
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR")?);
-    let proto_dir = manifest_dir.parent().unwrap().parent().unwrap().join("proto");
+    let workspace_root = manifest_dir.parent()
+        .and_then(|p| p.parent())
+        .ok_or_else(|| "failed to resolve workspace root from CARGO_MANIFEST_DIR")?;
+    let proto_dir = workspace_root.join("proto");
     let out_dir = manifest_dir.join("src/generated");
     
     // Create output directory if it doesn't exist

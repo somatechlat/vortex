@@ -2,7 +2,7 @@
 
 > **Duration**: Week 1  
 > **Dependencies**: None  
-> **Status**: 🟢 Complete
+> **Status**: Complete
 
 ---
 
@@ -10,11 +10,11 @@
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P0.1.1 | Create directory structure | 🟢 | `crates/`, `worker/`, `ui/`, `k8s/`, `docs/` |
-| P0.1.2 | Initialize Cargo workspace | 🟢 | vortex-core, registry, protocol, config, telemetry |
-| P0.1.3 | Create Python worker package | 🟢 | `worker/vortex_worker/` |
-| P0.1.4 | Create Svelte UI app | 🟢 | `ui/` with Vite |
-| P0.1.5 | Setup .editorconfig, .gitignore | 🟢 | |
+| P0.1.1 | Create directory structure | Done | `crates/`, `worker/`, `ui/`, `k8s/`, `docs/` |
+| P0.1.2 | Initialize Cargo workspace | Done | vortex-core, registry, protocol, config, telemetry |
+| P0.1.3 | Create Python worker package | Done | `worker/vortex_worker/` |
+| P0.1.4 | Create Svelte UI app | Done | `ui/` with Vite |
+| P0.1.5 | Setup .editorconfig, .gitignore | Done | |
 
 ---
 
@@ -22,10 +22,10 @@
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P0.2.1 | Create ci.yml workflow | 🟢 | `.github/workflows/ci.yml` |
-| P0.2.2 | Create security.yml workflow | 🟢 | `.github/workflows/security.yml` |
-| P0.2.3 | Setup Dependabot | 🟢 | `.github/dependabot.yml` |
-| P0.2.4 | Create issue templates | 🟢 | `.github/ISSUE_TEMPLATE/` |
+| P0.2.1 | Create ci.yml workflow | Done | `.github/workflows/ci.yml` |
+| P0.2.2 | Create security.yml workflow | Done | `.github/workflows/security.yml` |
+| P0.2.3 | Setup Dependabot | Done | `.github/dependabot.yml` |
+| P0.2.4 | Create issue templates | Done | `.github/ISSUE_TEMPLATE/` |
 
 ---
 
@@ -33,9 +33,9 @@
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P0.3.1 | Create docker-compose.yml | 🟢 | |
-| P0.3.2 | Create Tiltfile | 🟢 | Minikube deployment |
-| P0.3.3 | Create k8s/ manifests | 🟢 | Namespace, ResourceQuota, LimitRange |
+| P0.3.1 | Create docker-compose.yml | Done | |
+| P0.3.2 | Create Tiltfile | Done | Minikube deployment |
+| P0.3.3 | Create k8s/ manifests | Done | Namespace, ResourceQuota, LimitRange |
 
 ---
 
@@ -43,13 +43,13 @@
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P0.4.1 | Deploy Vault | 🟢 | Port 11200 |
-| P0.4.2 | Deploy Keycloak | 🟢 | Port 11201 |
-| P0.4.3 | Deploy SpiceDB | 🟢 | Port 11205 |
-| P0.4.4 | Deploy PostgreSQL | 🟢 | Port 11202 |
-| P0.4.5 | Deploy Milvus | 🟢 | Port 11203 |
-| P0.4.6 | Create Kustomize overlays | 🟢 | sandbox/live |
-| P0.4.7 | Centralized config (vortex-config) | 🟢 | No hardcoded URLs |
+| P0.4.1 | Deploy Vault | Done | Port 11200 |
+| P0.4.2 | Deploy Keycloak | Done | Port 11201 |
+| P0.4.3 | Deploy SpiceDB | Done | Port 11205 |
+| P0.4.4 | Deploy PostgreSQL | Done | Port 11202 |
+| P0.4.5 | Deploy Milvus | Done | Port 11203 |
+| P0.4.6 | Create Kustomize overlays | Done | sandbox/live |
+| P0.4.7 | Centralized config (vortex-config) | Done | No hardcoded URLs |
 
 ---
 
@@ -64,4 +64,4 @@
 
 ---
 
-**Unblocks**: Phase 1 (Protocol) - ✅ COMPLETE
+**Unblocks**: Phase 1 (Protocol) - COMPLETE

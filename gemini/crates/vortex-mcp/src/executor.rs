@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use serde_json::Value;
-use vortex_protocol::graph::{Node, Edge};
+use vortex_protocol::graph::Node;
 use vortex_protocol::VortexResult;
 use crate::client::McpClient;
 

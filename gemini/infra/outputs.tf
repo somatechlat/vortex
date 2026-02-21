@@ -23,12 +23,20 @@ output "nat_public_ips" {
   value       = module.vpc.nat_public_ips
 }
 
-output "asg_name" {
-    description = "Name of the Auto Scaling Group"
-    value = aws_autoscaling_group.workers.name
-}
+# output "asg_name" - REMOVED (Legacy EC2)
+
 
 output "sagemaker_endpoint_name" {
-  description = "Name of the Serverless SageMaker Endpoint"
+  description = "Name of the SageMaker GPU real-time endpoint"
   value       = aws_sagemaker_endpoint.vortex.name
+}
+
+output "sagemaker_serverless_smoke_endpoint_name" {
+  description = "Name of optional SageMaker serverless smoke endpoint"
+  value       = var.enable_sagemaker_serverless_smoke ? aws_sagemaker_endpoint.vortex_serverless_smoke[0].name : null
+}
+
+output "ecr_worker_repository_url" {
+  description = "ECR repository URL for vortex-worker images"
+  value       = aws_ecr_repository.vortex_worker.repository_url
 }

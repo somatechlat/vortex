@@ -81,12 +81,12 @@ The **VORTEX Workspace** is the complete user environment for creating, editing,
 | **New** | 📄 | Ctrl+N | Create new workflow |
 | **Save** | 💾 | Ctrl+S | Save current workflow |
 | **Load** | 📂 | Ctrl+O | Open existing workflow |
-| **Undo** | ↩️ | Ctrl+Z | Undo last action |
-| **Redo** | ↪️ | Ctrl+Y | Redo undone action |
-| **Queue** | ▶️ | Ctrl+Enter | Execute workflow |
-| **Cancel** | ⏹️ | Ctrl+. | Cancel execution |
+| **Undo** | Undo | Ctrl+Z | Undo last action |
+| **Redo** | Redo | Ctrl+Y | Redo undone action |
+| **Queue** | Run | Ctrl+Enter | Execute workflow |
+| **Cancel** | Stop | Ctrl+. | Cancel execution |
 | **Settings** | ⚙️ | Ctrl+, | Open settings |
-| **Gallery** | 🖼️ | G | View outputs |
+| **Gallery** | Gallery | G | View outputs |
 
 ### 3.2 Unit Palette (Why It Exists)
 
@@ -231,11 +231,11 @@ The **VORTEX Workspace** is the complete user environment for creating, editing,
 | **VAE** | 🔴 Red | Image encoder/decoder |
 | **CONDITIONING** | 🟠 Orange | Text embeddings |
 | **LATENT** | 🟣 Pink | Latent space tensors |
-| **IMAGE** | 🟢 Green | Pixel images |
-| **MASK** | ⚪ White | Binary masks |
+| **IMAGE** | Done Green | Pixel images |
+| **MASK** | Pending White | Binary masks |
 | **INT** | 🔵 Blue | Integer values |
 | **FLOAT** | 🔵 Cyan | Float values |
-| **STRING** | ⚪ Gray | Text strings |
+| **STRING** | Pending Gray | Text strings |
 
 ---
 
@@ -386,13 +386,13 @@ The **VORTEX Workspace** is the complete user environment for creating, editing,
 
 | Component | Purpose | Required |
 |-----------|---------|----------|
-| **Class** | Node implementation | ✅ |
-| **INPUT_TYPES** | Port/widget definitions | ✅ |
-| **RETURN_TYPES** | Output port types | ✅ |
-| **FUNCTION** | Execution method name | ✅ |
-| **CATEGORY** | Palette location | ✅ |
-| **display_name** | UI name | ❌ |
-| **description** | Tooltip text | ❌ |
+| **Class** | Node implementation | Complete |
+| **INPUT_TYPES** | Port/widget definitions | Complete |
+| **RETURN_TYPES** | Output port types | Complete |
+| **FUNCTION** | Execution method name | Complete |
+| **CATEGORY** | Palette location | Complete |
+| **display_name** | UI name | Reject |
+| **description** | Tooltip text | Reject |
 
 ### 10.2 Widget Types Available
 
@@ -411,4 +411,4 @@ The **VORTEX Workspace** is the complete user environment for creating, editing,
 **Document Status**: COMPLETE  
 **Total Tools Documented**: 50+  
 **Total Node Types**: 18+  
-**Ready for Implementation**: ✅
+**Ready for Implementation**: Complete

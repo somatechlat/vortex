@@ -14,6 +14,8 @@ tracing-subscriber.workspace = true
 # OpenTelemetry
 opentelemetry.workspace = true
 opentelemetry-otlp.workspace = true
+opentelemetry_sdk.workspace = true
+tracing-opentelemetry.workspace = true
 
 # Metrics
 prometheus = "0.13"

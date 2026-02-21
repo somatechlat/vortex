@@ -202,7 +202,9 @@ impl SharedMemory {
         use std::num::NonZeroUsize;
         use std::os::fd::AsFd;
 
-        let name = CString::new(SHM_NAME).unwrap();
+        let name = CString::new(SHM_NAME).map_err(|e| VortexError::ShmFailure {
+            reason: format!("invalid shm name: {}", e),
+        })?;
         
         let flags = if create {
             OFlag::O_CREAT | OFlag::O_RDWR
@@ -227,7 +229,9 @@ impl SharedMemory {
         let ptr = unsafe {
             mmap(
                 None,
-                NonZeroUsize::new(SHM_SIZE).unwrap(),
+                NonZeroUsize::new(SHM_SIZE).ok_or_else(|| VortexError::ShmFailure {
+                    reason: "invalid SHM_SIZE (must be > 0)".to_string(),
+                })?,
                 ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
                 MapFlags::MAP_SHARED,
                 Some(fd.as_fd()),

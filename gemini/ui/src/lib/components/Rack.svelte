@@ -46,6 +46,7 @@
       class:rack__slot--drop-target={dropIndex === unit.index}
       ondragover={(e) => handleDragOver(e, unit.index)}
       ondrop={(e) => handleDrop(e, unit.index)}
+      role="listitem"
       animate:flip={{ duration: 250 }}
     >
       <Blade

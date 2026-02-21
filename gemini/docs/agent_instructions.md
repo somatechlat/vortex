@@ -13,7 +13,7 @@
 
 ---
 
-## 🏗️ The Centaur Pattern
+## Architecture The Centaur Pattern
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -94,7 +94,7 @@ vortex/
 
 ---
 
-## ⚡ Key Technologies
+## Rules Key Technologies
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
@@ -133,7 +133,7 @@ vortex/
 
 ---
 
-## 📊 SRS Document Summary
+## Metrics SRS Document Summary
 
 | Document | Lines | Key Contents |
 |----------|-------|--------------|
@@ -187,7 +187,7 @@ message Job {
 
 ---
 
-## 🚀 Implementation Priority
+##  Implementation Priority
 
 ### Phase 1 (Core - 13 weeks)
 1. Node workflow system (Svelte Flow)
@@ -222,7 +222,7 @@ message Job {
 
 ---
 
-## ❌ Anti-Patterns to Avoid
+## Reject Anti-Patterns to Avoid
 
 - **NO** Gradio UI (slow, limited)
 - **NO** synchronous Python server (GIL)
@@ -233,7 +233,7 @@ message Job {
 
 ---
 
-## ✅ Quick Start Checklist
+## Complete Quick Start Checklist
 
 1. [ ] Read `rules.md` completely
 2. [ ] Read all 5 SRS documents
@@ -261,4 +261,4 @@ message Job {
 ---
 
 **Last Updated**: 2026-01-06  
-**Status**: Ready for Implementation 🚀
+**Status**: Ready for Implementation 

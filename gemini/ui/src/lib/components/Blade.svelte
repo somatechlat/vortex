@@ -1,9 +1,5 @@
-<!-- 
-  VORTEX Blade Component
-  Glassmorphic container for a processing unit
-  Per SDD §3.2.2 Blade Component specification
--->
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import type { RackUnit } from '$lib/stores/rack.svelte';
   import { rackStore } from '$lib/stores/rack.svelte';
   import { busStore } from '$lib/stores/bus.svelte';
@@ -13,17 +9,16 @@
     draggable?: boolean;
     ondragstart?: () => void;
     ondragend?: () => void;
+    children?: Snippet;
   }
   
-  const { unit, draggable = false, ondragstart, ondragend }: Props = $props();
+  const { unit, draggable = false, ondragstart, ondragend, children }: Props = $props();
   
-  // Derived status class
   let statusClass = $derived(
     unit.$status === 'RUNNING' ? 'blade--running' :
     unit.$status === 'ERROR' ? 'blade--error' : ''
   );
   
-  // Extract unit name from type
   let unitName = $derived(
     unit.type.split('.').pop()?.toUpperCase() ?? 'UNIT'
   );
@@ -39,7 +34,7 @@
   }
 </script>
 
-<article
+<div
   class="blade {statusClass}"
   class:blade--selected={rackStore.selectedId === unit.id}
   {draggable}
@@ -47,32 +42,29 @@
   {ondragend}
   onclick={handleClick}
   onkeydown={(e) => e.key === 'Enter' && handleClick()}
-  role="listitem"
+  role="button"
   tabindex="0"
-  aria-label="{unitName} unit"
+  aria-label="{unitName} unit card"
   data-testid="blade-{unit.id}"
 >
-  <!-- Tap Indicator (Left) -->
   <div class="blade__tap" aria-label="Signal connection">
     <span class="blade__tap-dot"></span>
   </div>
   
-  <!-- Content -->
   <div class="blade__content">
-    <!-- Header -->
     <header class="blade__header">
       <h3 class="blade__title">{unitName}</h3>
       <span class="blade__handle" aria-label="Drag handle">⋮⋮</span>
     </header>
     
-    <!-- Body (context-sensitive) -->
     <div class="blade__body">
-      <slot>
-        <p class="blade__placeholder">Configure unit</p>
-      </slot>
+      {#if children}
+        {@render children()}
+      {:else}
+        <p class="blade__hint">Configure unit</p>
+      {/if}
     </div>
     
-    <!-- Footer -->
     <footer class="blade__footer">
       <span class="blade__status">
         {unit.$status}
@@ -89,7 +81,7 @@
       </button>
     </footer>
   </div>
-</article>
+</div>
 
 <style>
   .blade {
@@ -174,7 +166,7 @@
     flex: 1;
   }
   
-  .blade__placeholder {
+  .blade__hint {
     font-size: var(--vtx-text-micro);
     opacity: 0.4;
   }

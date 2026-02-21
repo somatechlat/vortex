@@ -139,13 +139,13 @@ quadrantChart
 
 | Feature | Source | Problem | VORTEX Decision |
 |---------|--------|---------|-----------------|
-| **Gradio UI** | A1111/Fooocus | Slow, limited styling, poor UX | ❌ Use Svelte |
-| **Synchronous Python server** | A1111 | Blocks on GPU ops, unresponsive UI | ❌ Use async Rust |
-| **Global interpreter lock** | All Python | Single-threaded bottleneck | ❌ Multi-worker with IPC |
-| **In-memory model swapping** | A1111 | VRAM thrashing, slow | ❌ Predictive eviction |
-| **Unversioned dependencies** | ComfyUI | "Works on my machine" syndrome | ❌ Lockfiles + reproducibility |
-| **No security scanning** | All | Malicious custom nodes | ❌ AST analysis mandatory |
-| **Spaghetti wire routing** | ComfyUI | Unreadable workflows | ❌ Auto-routing + grouping |
+| **Gradio UI** | A1111/Fooocus | Slow, limited styling, poor UX | Reject Use Svelte |
+| **Synchronous Python server** | A1111 | Blocks on GPU ops, unresponsive UI | Reject Use async Rust |
+| **Global interpreter lock** | All Python | Single-threaded bottleneck | Reject Multi-worker with IPC |
+| **In-memory model swapping** | A1111 | VRAM thrashing, slow | Reject Predictive eviction |
+| **Unversioned dependencies** | ComfyUI | "Works on my machine" syndrome | Reject Lockfiles + reproducibility |
+| **No security scanning** | All | Malicious custom nodes | Reject AST analysis mandatory |
+| **Spaghetti wire routing** | ComfyUI | Unreadable workflows | Reject Auto-routing + grouping |
 
 ---
 
@@ -189,11 +189,11 @@ quadrantChart
 ```
 
 ### Phase 1: Foundation (Must Have)
-1. ✅ Node-based workflow system
-2. ✅ Zero-copy shared memory transport
-3. ✅ Workflow save/load (JSON + PNG)
-4. ✅ Basic node library (load, sample, save)
-5. ✅ Model caching with LFU eviction
+1. Complete Node-based workflow system
+2. Complete Zero-copy shared memory transport
+3. Complete Workflow save/load (JSON + PNG)
+4. Complete Basic node library (load, sample, save)
+5. Complete Model caching with LFU eviction
 
 ### Phase 2: Core Features (High Value)
 6. ControlNet integration
@@ -246,7 +246,7 @@ quadrantChart
 ```
 ✓ Huge extension library (1000+ extensions)
 ✓ Simple install (git clone to extensions folder)
-✓ ControlNet - revolutionary control mechanism
+✓ ControlNet - advanced control mechanism
 ✓ ADetailer - automatic face/hand fixing
 ✓ Civitai Helper - model discovery
 ```

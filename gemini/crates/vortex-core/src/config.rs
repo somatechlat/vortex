@@ -151,8 +151,30 @@ pub struct SystemConfig {
 impl SystemConfig {
     /// Build system configuration from vortex-config and hardware detection
     pub fn build() -> Self {
-        let config = vortex_config::VortexConfig::from_env()
-            .unwrap_or_else(|_| vortex_config::ConfigBuilder::sandbox().build().expect("default config"));
+        let config = match vortex_config::VortexConfig::from_env() {
+            Ok(cfg) => cfg,
+            Err(env_err) => {
+                tracing::warn!(error = %env_err, "Failed to load config from env; falling back to sandbox builder");
+                match vortex_config::ConfigBuilder::sandbox().build() {
+                    Ok(cfg) => cfg,
+                    Err(build_err) => {
+                        tracing::error!(error = %build_err, "Failed to build sandbox config; using minimal fallback config");
+                        vortex_config::VortexConfig {
+                            mode: DeploymentMode::Sandbox,
+                            services: vortex_config::ServiceConfig::default(),
+                            security: vortex_config::SecurityConfig::default(),
+                            database: vortex_config::DatabaseConfig::default(),
+                            worker: vortex_config::WorkerConfig::default(),
+                            api: vortex_config::ApiConfig::default(),
+                            features: vortex_config::FeatureFlags::live(),
+                            resources: vortex_config::ResourceLimits::sandbox(),
+                            logging: vortex_config::LoggingConfig::live(),
+                            tenancy: vortex_config::TenancyConfig::default(),
+                        }
+                    }
+                }
+            }
+        };
         
         let hardware = HardwareCapabilities::detect();
         let compute_mode = if hardware.has_gpu() {

@@ -8,38 +8,38 @@ echo "VORTEX FULL SYSTEM - REAL INFRASTRUCTURE TEST"
 echo "============================================================"
 
 # Cleanup any existing processes
-echo -e "\n🧹 Cleaning up existing processes..."
+echo -e "\nCleaning up existing processes..."
 pkill -f "vortex-core" 2>/dev/null || true
 pkill -f "python3.*vortex_worker" 2>/dev/null || true
 rm -f /tmp/vortex.sock 2>/dev/null || true
 sleep 2
 
-echo "✅ Cleanup complete"
+echo "Cleanup complete"
 
 # Start VORTEX Core (Rust API + Arbiter + Supervisor)
-echo -e "\n🚀 Starting VORTEX Core (Rust)..."
+echo -e "\nStarting VORTEX Core (Rust)..."
 cd crates/vortex-core
 cargo build --bin vortex-core --release 2>&1 | grep -E "Compiling|Finished" &
 BUILD_PID=$!
 
 # Wait for build
 wait $BUILD_PID
-echo "✅ Build complete"
+echo "Build complete"
 
 # Start in background, capture logs
 RUST_LOG=info cargo run --bin vortex-core --release > /tmp/vortex_core.log 2>&1 &
 RUST_PID=$!
-echo "✅ VORTEX Core started (PID: $RUST_PID)"
+echo "VORTEX Core started (PID: $RUST_PID)"
 
 # Wait for API server to be ready
-echo -e "\n⏳ Waiting for API server (port 11188)..."
+echo -e "\nWaiting for API server (port 11188)..."
 for i in {1..30}; do
     if curl -s http://localhost:11188/health > /dev/null 2>&1; then
-        echo "✅ API server ready!"
+        echo "API server ready."
         break
     fi
     if [ $i -eq 30 ]; then
-        echo "❌ API server failed to start"
+        echo "API server failed to start"
         cat /tmp/vortex_core.log
         exit 1
     fi
@@ -47,18 +47,18 @@ for i in {1..30}; do
 done
 
 # Start Python Worker
-echo -e "\n🐍 Starting Python Worker..."
+echo -e "\nStarting Python Worker..."
 cd ../../worker
 python3 -m vortex_worker --slot-id 0 --shm-name /vortex-shm --ipc-path /tmp/vortex.sock > /tmp/vortex_worker.log 2>&1 &
 PYTHON_PID=$!
-echo "✅ Python Worker started (PID: $PYTHON_PID)"
+echo "Python Worker started (PID: $PYTHON_PID)"
 
 # Wait for worker to be ready
-echo -e "\n⏳ Waiting for worker to connect..."
+echo -e "\nWaiting for worker to connect..."
 sleep 3
 
 # Test system
-echo -e "\n🔍 Testing full system..."
+echo -e "\nTesting full system..."
 
 # Test 1: System info
 echo -e "\n[TEST 1] System Info:"
@@ -94,10 +94,10 @@ echo -e "\n[TEST 6] Health Check:"
 curl -s http://localhost:11188/health | python3 -m json.tool
 
 echo -e "\n============================================================"
-echo "✅ ALL SYSTEM TESTS PASSED"
+echo "ALL SYSTEM TESTS PASSED"
 echo "============================================================"
 
-echo -e "\n📊 Process Status:"
+echo -e "\nProcess Status:"
 echo "   VORTEX Core: PID $RUST_PID"
 echo "   Python Worker: PID $PYTHON_PID"
 echo ""

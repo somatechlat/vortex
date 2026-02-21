@@ -7,7 +7,7 @@ test.describe('Tilt Dashboard (Port 1350)', () => {
 
         // Verify Tilt UI loads
         await expect(page).toHaveTitle(/Tilt/);
-        console.log('✅ Tilt dashboard accessible at http://localhost:1350');
+        console.log('Tilt dashboard accessible at http://localhost:1350');
     });
 
     test('Tilt API returns resource list', async ({ request }) => {
@@ -16,7 +16,7 @@ test.describe('Tilt Dashboard (Port 1350)', () => {
 
         const data = await response.json();
         expect(data).toHaveProperty('logList');
-        console.log('✅ Tilt API responding with resource data');
+        console.log('Tilt API responding with resource data');
     });
 
     test('Verify VORTEX resources registered', async ({ request }) => {
@@ -28,7 +28,7 @@ test.describe('Tilt Dashboard (Port 1350)', () => {
             .map((s: any) => s.manifestName)
             .filter(Boolean);
 
-        console.log('📦 Registered manifests:', manifests);
+        console.log('Registered manifests:', manifests);
         expect(manifests.length).toBeGreaterThan(0);
     });
 });

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ok() { printf "✅ %s\n" "$1"; }
-warn() { printf "⚠️  %s\n" "$1"; }
-fail() { printf "❌ %s\n" "$1"; exit 1; }
+ok() { printf "OK: %s\n" "$1"; }
+warn() { printf "WARN: %s\n" "$1"; }
+fail() { printf "ERROR: %s\n" "$1"; exit 1; }
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

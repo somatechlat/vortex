@@ -11,7 +11,6 @@ import io
 import numpy as np
 from typing import Any, Dict
 
-import boto3
 from .executor import AbstractExecutor, ExecutionResult, TensorHandle, ExecutorRegistry
 from .shm import ShmArena
 
@@ -39,6 +38,7 @@ class SageMakerExecutor(AbstractExecutor):
     @property
     def sm_client(self):
         if self._sm_client is None:
+            import boto3
             self._sm_client = boto3.client("sagemaker-runtime", region_name=self.region)
         return self._sm_client
 
@@ -86,7 +86,7 @@ class SageMakerExecutor(AbstractExecutor):
 
             # 2. Invoke Endpoint
             response = self.sm_client.invoke_endpoint(
-                EndpointName=self.endpoint_name,
+                EndpointName=target_endpoint,
                 ContentType="application/json",
                 Body=json.dumps(payload).encode("utf-8")
             )

@@ -18,11 +18,12 @@
   let animationId: number;
   
   onMount(() => {
-    const gl = canvas.getContext('webgl2');
-    if (!gl) {
+    const maybeGl = canvas.getContext('webgl2');
+    if (!maybeGl) {
       console.warn('WebGL2 not supported, falling back to CSS');
       return;
     }
+    const gl: WebGL2RenderingContext = maybeGl;
     
     // Resize handler
     function resize() {

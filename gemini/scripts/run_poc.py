@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("poc")
 
 def main():
-    logger.info("🌸 VORTEX POC: The Laughing Flowers (REAL FLOW) 🌸")
+    logger.info("VORTEX POC: The Laughing Flowers (real flow)")
 
     if len(sys.argv) < 2:
         logger.error("Usage: python run_poc.py <SAGEMAKER_ENDPOINT_NAME>")
@@ -48,7 +48,7 @@ def main():
     # helper to run a job
     def run_job(step_name, remote_op, params, inputs={}):
         job_id = f"poc-{step_name}-{int(time.time())}"
-        logger.info(f"📍 Dispatching Step: {step_name} [{remote_op}]")
+        logger.info(f"Dispatching step: {step_name} [{remote_op}]")
 
         # We wrap the real operation in Cloud::SageMaker
         payload_params = params.copy()
@@ -76,7 +76,7 @@ def main():
                 if not result.success:
                     raise RuntimeError(f"Step {step_name} failed: {result.error}")
 
-                logger.info(f"✅ Step {step_name} Success!")
+                logger.info(f"Step {step_name} succeeded")
                 return result
             time.sleep(0.1)
 
@@ -95,18 +95,18 @@ def main():
             "Generate",
             "Sampler::KSampler",
             {
-                "prompt": "A field of sunflowers laughing hysterically, cinematic lighting, 8k",
+                "prompt": "A field of sunflowers, cinematic lighting",
                 "steps": 20,
                 "cfg": 7.5,
                 "seed": 42
             }
         )
 
-        logger.info(f"🌸 POC COMPLETED. Generated {len(result.outputs)} latent tensors.")
+        logger.info(f"POC completed. Generated {len(result.outputs)} latent tensors.")
         logger.info(f"Metrics: {result.metrics}")
 
     except Exception as e:
-        logger.error(f"❌ POC FAILED: {e}")
+        logger.error(f"POC failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@
 ## 1. OVERVIEW
 
 ### 1.1 Purpose
-This document provides the complete software design for the VORTEX Frontend UI, derived from SRS-02 and SRS-05. It implements the revolutionary "Vortex Flow Stream" paradigm using a **Vertical Rack** layout with glassmorphic aesthetics.
+This document provides the complete software design for the VORTEX Frontend UI, derived from SRS-02 and SRS-05. It implements the advanced "Vortex Flow Stream" paradigm using a **Vertical Rack** layout with glassmorphic aesthetics.
 
 ### 1.2 Scope
 The Frontend UI is a Single Page Application (SPA) responsible for:
@@ -498,7 +498,7 @@ export const execStore = new ExecutionStore();
       {#if unit.$status === 'RUNNING'}
         ⏳ {unit.$progress}%
       {:else if unit.$status === 'ERROR'}
-        ❌ Error
+        Reject Error
       {:else}
         ✓ Ready
       {/if}
@@ -1059,4 +1059,4 @@ export const wsService = new WebSocketService();
 
 **Document Status**: COMPLETE  
 **Lines**: 700+  
-**Ready for Implementation**: ✅
+**Ready for Implementation**: Complete

@@ -26,9 +26,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Upgrade pip
 RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
 
-# Install PyTorch with CUDA support
-RUN pip3 install --no-cache-dir torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu121
-
 # Install VORTEX dependencies
 # Copy only requirements first to cache layer
 COPY gemini/worker/requirements.live.txt /app/requirements.txt
@@ -38,13 +35,13 @@ RUN pip3 install --no-cache-dir -r /app/requirements.txt
 WORKDIR /app
 COPY gemini/worker/ /app/worker/
 
-# Install the worker package
-RUN pip3 install -e /app/worker
-
 # Create non-root user for security
 RUN useradd -m -u 1000 vortex
 RUN chown -R vortex:vortex /app
 USER vortex
+
+# Run worker directly from source tree.
+ENV PYTHONPATH=/app/worker
 
 # Expose ports (although worker connects outbound usually)
 # If using direct connect mode:

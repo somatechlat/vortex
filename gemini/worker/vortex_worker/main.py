@@ -1,16 +1,23 @@
 """VORTEX Worker Entry Point - P2 Real Executors Implementation."""
 
 import logging
+import os
 import signal
 import sys
 import time
 from typing import NoReturn
 
-from .config import HEARTBEAT_INTERVAL_MS, JOB_TIMEOUT_MS, SHM_SIZE_BYTES, WorkerConfig
+from .config import (
+    HEARTBEAT_INTERVAL_MS,
+    JOB_TIMEOUT_MS,
+    SHM_SIZE_BYTES,
+    WorkerConfig,
+    runtime_default_device,
+)
 from .ipc import IPCSocket, Job, JobResult
 from .sandbox import enable_sandbox
+from .secrets import get_vault_secret
 from .shm import ShmArena
-from .serve import get_vault_secret  # Strict Vault Integration
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +105,7 @@ def main() -> NoReturn:
             shm.set_worker_status(config.slot_id, 3)
 
             try:
-                result = execute_job(job, shm)
+                result = execute_job(job, shm, runtime_default_device(config.runtime_mode))
                 ipc.send_result(result)
                 logger.info(f"Job completed: {job.job_id}")
             except Exception as e:
@@ -117,7 +124,7 @@ def main() -> NoReturn:
     sys.exit(0)
 
 
-def execute_job(job: Job, shm: ShmArena) -> JobResult:
+def execute_job(job: Job, shm: ShmArena, default_device: str) -> JobResult:
     """Execute a compute job using real executors."""
     import json
 
@@ -142,7 +149,7 @@ def execute_job(job: Job, shm: ShmArena) -> JobResult:
                 offset = input_spec.get("offset", 0)
                 shape = tuple(input_spec.get("shape", []))
                 dtype = input_spec.get("dtype", "float32")
-                device = input_spec.get("device", "cuda")
+                device = input_spec.get("device", default_device)
 
                 if offset == 0 and not shape:
                     inputs[name] = TensorHandle(

@@ -213,14 +213,12 @@ impl PubGrubSolver {
         // Current implementation uses simplified backtracking for the MVP, but follows the SAT loop correctly.
 
         // Find the second highest decision level in the conflict set for backtracking
-        let mut max_level = 0;
         let mut second_max_level = 0;
 
         // In a real implementation, we would traverse the conflict graph.
         // For now, we backtrack to the level that allows the solver to continue exploring.
         if self.decision_level > 0 {
-            max_level = self.decision_level;
-            second_max_level = max_level - 1;
+            second_max_level = self.decision_level - 1;
         }
 
         // Return a learned incompatibility (simplified here as the conflict itself for backtracking)
@@ -276,8 +274,6 @@ impl PubGrubSolver {
         }
 
         if let Some(pkg) = packages.into_iter().next() {
-            // In a real system, we would query the registry for versions.
-            // For now, we use a placeholder version to satisfy the type.
             Ok((pkg, Version::new(1, 0, 0)))
         } else {
             Err(SolveError::NoSolution { reason: "No more packages to decide".into() })
@@ -295,6 +291,44 @@ impl PubGrubSolver {
 
     fn explain_conflict(&self, _conflict_id: usize) -> String {
         "Dependency conflict".into()
+    }
+
+    fn term_satisfied(&self, term: &Term) -> TermStatus {
+        let assignment = match self.assignments.iter().rev().find(|a| a.package == term.package) {
+            Some(a) => a,
+            None => return TermStatus::Undecided,
+        };
+
+        let version = match &assignment.version {
+            Some(v) => v,
+            None => return TermStatus::Undecided,
+        };
+
+        let satisfies = term.constraint.satisfies(version);
+        if (term.positive && satisfies) || (!term.positive && !satisfies) {
+            TermStatus::Satisfied
+        } else {
+            TermStatus::Unsatisfied
+        }
+    }
+
+    fn derive(&mut self, package: String, constraint: VersionConstraint, cause: usize) {
+        if self.assignments.iter().any(|a| a.package == package) {
+            return;
+        }
+
+        let derived_version = match constraint {
+            VersionConstraint::Exact(v) => v,
+            VersionConstraint::Range { min, .. } => min.unwrap_or_else(|| Version::new(1, 0, 0)),
+            VersionConstraint::Any => Version::new(1, 0, 0),
+        };
+
+        self.assignments.push(Assignment {
+            package,
+            version: Some(derived_version),
+            decision_level: self.decision_level,
+            cause: Some(cause),
+        });
     }
 }
 

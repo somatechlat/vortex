@@ -11,20 +11,20 @@
 
 | Category | Pattern | Location | Documented |
 |----------|---------|----------|------------|
-| **Structural** | Centaur (Host/Worker) | SRS-00 §2.1 | ✅ |
-| **Structural** | Hexagonal Architecture | SRS-01 §6.1 | ✅ |
-| **Behavioral** | Event Sourcing | This doc §3.1 | ✅ |
-| **Behavioral** | CQRS | This doc §3.2 | ✅ |
-| **Behavioral** | Saga Pattern | This doc §3.3 | ✅ |
-| **Creational** | Factory Method | SRS-03 §6.1 | ✅ |
-| **Creational** | Abstract Factory | SRS-04 §6.1 | ✅ |
-| **Concurrency** | Actor Model | This doc §4.1 | ✅ |
-| **Concurrency** | Work Stealing | This doc §4.2 | ✅ |
-| **Resilience** | Circuit Breaker | This doc §5.1 | ✅ |
-| **Resilience** | Bulkhead | This doc §5.2 | ✅ |
-| **Observability** | Distributed Tracing | This doc §6.1 | ✅ |
-| **Observability** | Structured Logging | This doc §6.2 | ✅ |
-| **Observability** | Metrics Collection | This doc §6.3 | ✅ |
+| **Structural** | Centaur (Host/Worker) | SRS-00 §2.1 | Complete |
+| **Structural** | Hexagonal Architecture | SRS-01 §6.1 | Complete |
+| **Behavioral** | Event Sourcing | This doc §3.1 | Complete |
+| **Behavioral** | CQRS | This doc §3.2 | Complete |
+| **Behavioral** | Saga Pattern | This doc §3.3 | Complete |
+| **Creational** | Factory Method | SRS-03 §6.1 | Complete |
+| **Creational** | Abstract Factory | SRS-04 §6.1 | Complete |
+| **Concurrency** | Actor Model | This doc §4.1 | Complete |
+| **Concurrency** | Work Stealing | This doc §4.2 | Complete |
+| **Resilience** | Circuit Breaker | This doc §5.1 | Complete |
+| **Resilience** | Bulkhead | This doc §5.2 | Complete |
+| **Observability** | Distributed Tracing | This doc §6.1 | Complete |
+| **Observability** | Structured Logging | This doc §6.2 | Complete |
+| **Observability** | Metrics Collection | This doc §6.3 | Complete |
 
 ---
 
@@ -212,21 +212,21 @@ ORDER BY e.sequence_number DESC;
 
 | Event Type | Aggregate | Reversible | Replayable |
 |------------|-----------|------------|------------|
-| `GraphCreated` | Graph | ✅ | ✅ |
-| `GraphDeleted` | Graph | ✅ | ✅ |
-| `NodeCreated` | Node | ✅ | ✅ |
-| `NodeDeleted` | Node | ✅ | ✅ |
-| `NodeMoved` | Node | ✅ | ✅ |
-| `NodeParamUpdated` | Node | ✅ | ✅ |
-| `EdgeCreated` | Edge | ✅ | ✅ |
-| `EdgeDeleted` | Edge | ✅ | ✅ |
-| `ExecutionStarted` | Execution | ❌ | ✅ |
-| `ExecutionCompleted` | Execution | ❌ | ✅ |
-| `ExecutionFailed` | Execution | ❌ | ✅ |
-| `WorkerSpawned` | Worker | ❌ | ✅ |
-| `WorkerCrashed` | Worker | ❌ | ✅ |
-| `MemoryAllocated` | Memory | ✅ | ✅ |
-| `MemoryEvicted` | Memory | ✅ | ✅ |
+| `GraphCreated` | Graph | Complete | Complete |
+| `GraphDeleted` | Graph | Complete | Complete |
+| `NodeCreated` | Node | Complete | Complete |
+| `NodeDeleted` | Node | Complete | Complete |
+| `NodeMoved` | Node | Complete | Complete |
+| `NodeParamUpdated` | Node | Complete | Complete |
+| `EdgeCreated` | Edge | Complete | Complete |
+| `EdgeDeleted` | Edge | Complete | Complete |
+| `ExecutionStarted` | Execution | Reject | Complete |
+| `ExecutionCompleted` | Execution | Reject | Complete |
+| `ExecutionFailed` | Execution | Reject | Complete |
+| `WorkerSpawned` | Worker | Reject | Complete |
+| `WorkerCrashed` | Worker | Reject | Complete |
+| `MemoryAllocated` | Memory | Complete | Complete |
+| `MemoryEvicted` | Memory | Complete | Complete |
 
 ### 3.3 Replay Engine
 
@@ -648,21 +648,21 @@ POST /api/audit/export?format=csv|json
 
 | Pattern | SRS Section | Status |
 |---------|-------------|--------|
-| Centaur Architecture | 00_master_srs §2.1 | ✅ Documented |
-| Event Sourcing | **NEW - This Document** | ✅ Documented |
-| CQRS | **NEW - This Document** | ✅ Documented |
-| Saga Pattern | **NEW - This Document** | ✅ Documented |
-| Circuit Breaker | **NEW - This Document** | ✅ Documented |
-| Distributed Tracing | **NEW - This Document** | ✅ Documented |
-| Kahn's Algorithm | 01_core_engine_srs §3.2.1 | ✅ Documented |
-| Merkle Hashing | 01_core_engine_srs §3.5.2 | ✅ Documented |
-| LFU Eviction | 01_core_engine_srs §3.2.3 | ✅ Documented |
-| Hybrid Rendering | 02_frontend_ui_srs §3.2.1 | ✅ Documented |
-| CRDT Collaboration | 02_frontend_ui_srs §3.2.2 | ✅ Documented |
-| Zero-Copy Bridge | 03_compute_fabric_srs §3.2.2 | ✅ Documented |
-| Seccomp Sandbox | 03_compute_fabric_srs §3.2.3 | ✅ Documented |
-| PubGrub Solver | 04_registry_srs §3.2.1 | ✅ Documented |
-| AST Security Scan | 04_registry_srs §3.2.2 | ✅ Documented |
+| Centaur Architecture | 00_master_srs §2.1 | Complete Documented |
+| Event Sourcing | **NEW - This Document** | Complete Documented |
+| CQRS | **NEW - This Document** | Complete Documented |
+| Saga Pattern | **NEW - This Document** | Complete Documented |
+| Circuit Breaker | **NEW - This Document** | Complete Documented |
+| Distributed Tracing | **NEW - This Document** | Complete Documented |
+| Kahn's Algorithm | 01_core_engine_srs §3.2.1 | Complete Documented |
+| Merkle Hashing | 01_core_engine_srs §3.5.2 | Complete Documented |
+| LFU Eviction | 01_core_engine_srs §3.2.3 | Complete Documented |
+| Hybrid Rendering | 02_frontend_ui_srs §3.2.1 | Complete Documented |
+| CRDT Collaboration | 02_frontend_ui_srs §3.2.2 | Complete Documented |
+| Zero-Copy Bridge | 03_compute_fabric_srs §3.2.2 | Complete Documented |
+| Seccomp Sandbox | 03_compute_fabric_srs §3.2.3 | Complete Documented |
+| PubGrub Solver | 04_registry_srs §3.2.1 | Complete Documented |
+| AST Security Scan | 04_registry_srs §3.2.2 | Complete Documented |
 
 ---
 

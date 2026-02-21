@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ok() { printf "✅ %s\n" "$1"; }
-warn() { printf "⚠️  %s\n" "$1" >&2; }
-fail() { printf "❌ %s\n" "$1" >&2; exit 1; }
-note() { printf "ℹ️  %s\n" "$1" >&2; }
+ok() { printf "OK: %s\n" "$1"; }
+warn() { printf "WARN: %s\n" "$1" >&2; }
+fail() { printf "ERROR: %s\n" "$1" >&2; exit 1; }
+note() { printf "INFO: %s\n" "$1" >&2; }
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

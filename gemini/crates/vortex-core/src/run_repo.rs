@@ -75,7 +75,7 @@ impl RunRepository {
         let status = if success { run::RunStatus::Completed } else { run::RunStatus::Failed };
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .map_err(|e| VortexError::Internal(format!("time error: {e}")))?
             .as_secs() as i64;
 
         let run = run::Entity::find_by_id(id.to_string())

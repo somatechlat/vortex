@@ -4,11 +4,15 @@
 
 resource "aws_ecr_repository" "vortex_worker" {
   name                 = "vortex-worker"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
   }
+}
+
+locals {
+  worker_image_uri = var.sagemaker_worker_image_uri
 }
 
 resource "aws_ecs_cluster" "vortex" {
@@ -52,36 +56,126 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_serverless" {
 }
 
 # -----------------------------------------------------------------------------
-# SageMaker (Serverless Inference)
+# SageMaker (GPU Real-Time + Optional Serverless Smoke)
 # -----------------------------------------------------------------------------
 
+resource "aws_iam_role" "sagemaker_execution" {
+  name = "vortex-sagemaker-execution-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "sagemaker.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "sagemaker_execution_policy" {
+  role = aws_iam_role.sagemaker_execution.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ]
+        Resource = aws_ecr_repository.vortex_worker.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:CreateLogGroup",
+          "logs:DescribeLogStreams",
+          "logs:DescribeLogGroups"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.vortex_models.arn,
+          "${aws_s3_bucket.vortex_models.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_sagemaker_model" "vortex" {
-  name               = "vortex-serverless-model"
-  execution_role_arn = aws_iam_role.ecs_execution.arn
+  name               = "vortex-gpu-test-model"
+  execution_role_arn = aws_iam_role.sagemaker_execution.arn
+  depends_on         = [aws_iam_role_policy.sagemaker_execution_policy]
+
+  lifecycle {
+    precondition {
+      condition     = length(trimspace(local.worker_image_uri)) > 0 && can(regex("@sha256:[a-f0-9]{64}$", local.worker_image_uri))
+      error_message = "sagemaker_worker_image_uri must be set to an immutable ECR digest URI (example: <repo>@sha256:<digest>)."
+    }
+  }
 
   primary_container {
-    image = "${aws_ecr_repository.vortex_worker.repository_url}:latest"
+    image = local.worker_image_uri
     mode  = "SingleModel"
   }
 }
 
-resource "aws_sagemaker_endpoint_configuration" "serverless" {
-  name = "vortex-serverless-endpoint-config"
+resource "aws_sagemaker_endpoint_configuration" "realtime_gpu" {
+  name = "vortex-gpu-test-endpoint-config"
 
   production_variants {
     variant_name           = "AllTraffic"
     model_name             = aws_sagemaker_model.vortex.name
-
-    serverless_config {
-      max_concurrency = 5
-      memory_size_in_mb = 6144
-    }
+    instance_type          = var.sagemaker_gpu_instance_type
+    initial_instance_count = var.sagemaker_initial_instance_count
   }
 }
 
 resource "aws_sagemaker_endpoint" "vortex" {
-  name                 = "vortex-serverless-endpoint"
-  endpoint_config_name = aws_sagemaker_endpoint_configuration.serverless.name
+  name                 = "vortex-gpu-test-endpoint"
+  endpoint_config_name = aws_sagemaker_endpoint_configuration.realtime_gpu.name
+}
+
+# Optional serverless smoke endpoint for API-contract testing (CPU, not for real diffusion loads)
+resource "aws_sagemaker_endpoint_configuration" "serverless_smoke" {
+  count = var.enable_sagemaker_serverless_smoke ? 1 : 0
+  name  = "vortex-serverless-smoke-endpoint-config"
+
+  production_variants {
+    variant_name = "AllTraffic"
+    model_name   = aws_sagemaker_model.vortex.name
+    serverless_config {
+      max_concurrency   = var.sagemaker_serverless_max_concurrency
+      memory_size_in_mb = var.sagemaker_serverless_memory_mb
+    }
+  }
+}
+
+resource "aws_sagemaker_endpoint" "vortex_serverless_smoke" {
+  count                = var.enable_sagemaker_serverless_smoke ? 1 : 0
+  name                 = "vortex-serverless-smoke-endpoint"
+  endpoint_config_name = aws_sagemaker_endpoint_configuration.serverless_smoke[0].name
 }
 
 # -----------------------------------------------------------------------------
@@ -107,11 +201,11 @@ resource "aws_codebuild_project" "vortex_build" {
 
     environment_variable {
       name  = "AWS_DEFAULT_REGION"
-      value = "us-east-1"
+      value = var.aws_region
     }
     environment_variable {
       name  = "AWS_ACCOUNT_ID"
-      value = "575271901235"
+      value = var.account_id
     }
   }
 

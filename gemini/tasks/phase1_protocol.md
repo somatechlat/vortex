@@ -2,7 +2,7 @@
 
 > **Duration**: Week 2  
 > **Dependencies**: Phase 0  
-> **Status**: ⚪ Blocked
+> **Status**: Pending Blocked
 
 ---
 
@@ -10,10 +10,10 @@
 
 | ID | Task | Status | Assignee | Notes |
 |----|------|--------|----------|-------|
-| P1.1.1 | Define `proto/control.proto` (IPC messages) | ⚪ | - | `ControlPacket`, `JobSubmit`, `JobResult` |
-| P1.1.2 | Define `proto/graph.proto` (graph structures) | ⚪ | - | `GraphDSL`, `NodeDef`, `EdgeDef`, `PortRef` |
-| P1.1.3 | Define `proto/worker.proto` (worker messages) | ⚪ | - | `Handshake`, `Heartbeat`, `Capability` |
-| P1.1.4 | Setup `prost-build` in `vortex-protocol/build.rs` | ⚪ | - | |
+| P1.1.1 | Define `proto/control.proto` (IPC messages) | Pending | - | `ControlPacket`, `JobSubmit`, `JobResult` |
+| P1.1.2 | Define `proto/graph.proto` (graph structures) | Pending | - | `GraphDSL`, `NodeDef`, `EdgeDef`, `PortRef` |
+| P1.1.3 | Define `proto/worker.proto` (worker messages) | Pending | - | `Handshake`, `Heartbeat`, `Capability` |
+| P1.1.4 | Setup `prost-build` in `vortex-protocol/build.rs` | Pending | - | |
 
 ---
 
@@ -21,10 +21,10 @@
 
 | ID | Task | Status | Assignee | Notes |
 |----|------|--------|----------|-------|
-| P1.2.1 | Create `types.rs` (NodeId, GraphId, JobId newtypes) | ⚪ | - | |
-| P1.2.2 | Create `errors.rs` with VE-XXX error codes | ⚪ | - | See SRS for codes |
-| P1.2.3 | Create `constants.rs` (magic bytes, port numbers) | ⚪ | - | Port Authority spec |
-| P1.2.4 | Add `#[derive]` for Serialize, Debug, Clone | ⚪ | - | |
+| P1.2.1 | Create `types.rs` (NodeId, GraphId, JobId newtypes) | Pending | - | |
+| P1.2.2 | Create `errors.rs` with VE-XXX error codes | Pending | - | See SRS for codes |
+| P1.2.3 | Create `constants.rs` (magic bytes, port numbers) | Pending | - | Port Authority spec |
+| P1.2.4 | Add `#[derive]` for Serialize, Debug, Clone | Pending | - | |
 
 ---
 
@@ -32,10 +32,10 @@
 
 | ID | Task | Status | Assignee | Notes |
 |----|------|--------|----------|-------|
-| P1.3.1 | Define `ShmHeader` struct (Rust) | ⚪ | - | 64-byte aligned |
-| P1.3.2 | Define `WorkerSlot` struct (Rust) | ⚪ | - | 256 slots |
-| P1.3.3 | Define matching ctypes in Python | ⚪ | - | Must match exactly |
-| P1.3.4 | Write cross-language verification test | ⚪ | - | **Critical** |
+| P1.3.1 | Define `ShmHeader` struct (Rust) | Pending | - | 64-byte aligned |
+| P1.3.2 | Define `WorkerSlot` struct (Rust) | Pending | - | 256 slots |
+| P1.3.3 | Define matching ctypes in Python | Pending | - | Must match exactly |
+| P1.3.4 | Write cross-language verification test | Pending | - | **Critical** |
 
 ---
 

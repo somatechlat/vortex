@@ -568,9 +568,9 @@ impl VaultPaths {
 |---------|----------------------|------------------|------------|
 | Log Level | error | error | error |
 | Log Format | json | json | json |
-| Debug Panel | ❌ | ❌ | ❌ |
-| Billing | ✅ | ✅ | ✅ |
-| Swagger | ❌ | ❌ | ❌ |
+| Debug Panel | Reject | Reject | Reject |
+| Billing | Complete | Complete | Complete |
+| Swagger | Reject | Reject | Reject |
 | Rate Limit | 100/min | 100/min | 100/min |
 | Max Jobs | 2 | 32 | 32 |
 | Inference | GPU (if available) | GPU (if available) | GPU (if available) |
@@ -606,19 +606,19 @@ impl HardwareCapabilities {
 |----|-------------|----------|
 | REQ-CODE-001.1 | Comments must be concise and technical | MUST |
 | REQ-CODE-001.2 | Document WHY, not just WHAT | MUST |
-| REQ-CODE-001.3 | No "AI slop" - vague or filler comments | MUST |
+| REQ-CODE-001.3 | No "low-quality" - vague or filler comments | MUST |
 | REQ-CODE-001.4 | No obvious comments | MUST |
 | REQ-CODE-001.5 | Use industry-standard terminology | SHOULD |
 
 ### 10.2 Prohibited Comment Patterns
 
 ```rust
-// ❌ BAD (AI slop)
+// Reject BAD (low-quality)
 // This function does the thing
 // Here we process the data
 // Magic happens here!
 
-// ✅ GOOD (Professional)
+// Complete GOOD (Professional)
 // Topological sort: O(V+E) complexity
 // SAFETY: Pointer valid for Arena lifetime
 ```
@@ -644,7 +644,7 @@ impl HardwareCapabilities {
 | REQ-DB-001 | postgres.yaml | entities.rs | pending |
 | REQ-DB-002 | milvus.yaml | - | pending |
 | REQ-ORM-001 | - | entities.rs | pending |
-| REQ-CFG-001 | - | settings.rs | ✅ |
-| REQ-CFG-002 | - | config.rs | ✅ |
-| REQ-CODE-001 | - | (all modules) | ✅ |
-| REQ-CODE-002 | - | vortex-config | ✅ |
+| REQ-CFG-001 | - | settings.rs | Complete |
+| REQ-CFG-002 | - | config.rs | Complete |
+| REQ-CODE-001 | - | (all modules) | Complete |
+| REQ-CODE-002 | - | vortex-config | Complete |

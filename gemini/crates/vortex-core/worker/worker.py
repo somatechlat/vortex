@@ -21,7 +21,6 @@ import socket
 import struct
 import sys
 import time
-import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
@@ -376,8 +375,7 @@ class Worker:
                 logger.warning("Connection lost")
                 break
             except Exception as e:
-                logger.error(f"Error in main loop: {e}")
-                traceback.print_exc()
+                logger.exception(f"Error in main loop: {e}")
 
     def _handle_packet(self, packet: ControlPacket):
         """Handle incoming packets"""
@@ -512,8 +510,7 @@ def main():
         worker.connect()
         worker.run()
     except Exception as e:
-        logger.error(f"Worker failed: {e}")
-        traceback.print_exc()
+        logger.exception(f"Worker failed: {e}")
         sys.exit(1)
     finally:
         worker.shutdown()

@@ -13,83 +13,83 @@
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_ENV` | enum | `development_sandbox` | ❌ | Environment: `development_sandbox`, `development_live`, `production` |
-| `VORTEX_PORT` | int | `11188` | ❌ | HTTP API port (external; Port Authority: 11000+) |
-| `VORTEX_WS_PORT` | int | `11189` | ❌ | WebSocket port (external; Port Authority: 11000+) |
-| `VORTEX_HOST` | string | `0.0.0.0` | ❌ | Bind address |
-| `VORTEX_WORKERS` | int | `4` | ❌ | Number of Python worker processes |
-| `VORTEX_LOG_LEVEL` | enum | `info` | ❌ | Log level: `error`, `warn`, `info`, `debug`, `trace` |
-| `VORTEX_LOG_FORMAT` | enum | `json` | ❌ | Log format: `json`, `pretty` |
+| `VORTEX_ENV` | enum | `development_sandbox` | Reject | Environment: `development_sandbox`, `development_live`, `production` |
+| `VORTEX_PORT` | int | `11188` | Reject | HTTP API port (external; Port Authority: 11000+) |
+| `VORTEX_WS_PORT` | int | `11189` | Reject | WebSocket port (external; Port Authority: 11000+) |
+| `VORTEX_HOST` | string | `0.0.0.0` | Reject | Bind address |
+| `VORTEX_WORKERS` | int | `4` | Reject | Number of Python worker processes |
+| `VORTEX_LOG_LEVEL` | enum | `info` | Reject | Log level: `error`, `warn`, `info`, `debug`, `trace` |
+| `VORTEX_LOG_FORMAT` | enum | `json` | Reject | Log format: `json`, `pretty` |
 
 ### 1.2 Shared Memory Variables
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_SHM_NAME` | string | `/vortex-shm` | ❌ | POSIX shared memory name |
-| `VORTEX_SHM_SIZE` | size | `68719476736` | ❌ | Arena size in bytes (default: 64GB) |
-| `VORTEX_SHM_PATH` | path | `/dev/shm` | ❌ | SHM mount path |
+| `VORTEX_SHM_NAME` | string | `/vortex-shm` | Reject | POSIX shared memory name |
+| `VORTEX_SHM_SIZE` | size | `68719476736` | Reject | Arena size in bytes (default: 64GB) |
+| `VORTEX_SHM_PATH` | path | `/dev/shm` | Reject | SHM mount path |
 
 ### 1.3 IPC Variables
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_IPC_PATH` | path | `/tmp/vortex.sock` | ❌ | Unix domain socket path |
-| `VORTEX_IPC_TIMEOUT` | int | `30000` | ❌ | IPC socket timeout in ms |
-| `VORTEX_HEARTBEAT_INTERVAL` | int | `1000` | ❌ | Worker heartbeat interval in ms |
+| `VORTEX_IPC_PATH` | path | `/tmp/vortex.sock` | Reject | Unix domain socket path |
+| `VORTEX_IPC_TIMEOUT` | int | `30000` | Reject | IPC socket timeout in ms |
+| `VORTEX_HEARTBEAT_INTERVAL` | int | `1000` | Reject | Worker heartbeat interval in ms |
 
 ### 1.4 Database Variables
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_DB_PATH` | path | `./vortex.db` | ❌ | SQLite database path |
-| `VORTEX_DB_WAL` | bool | `true` | ❌ | Enable WAL mode |
-| `VORTEX_DB_POOL_SIZE` | int | `5` | ❌ | Connection pool size |
+| `VORTEX_DB_PATH` | path | `./vortex.db` | Reject | SQLite database path |
+| `VORTEX_DB_WAL` | bool | `true` | Reject | Enable WAL mode |
+| `VORTEX_DB_POOL_SIZE` | int | `5` | Reject | Connection pool size |
 
 ### 1.5 GPU / VRAM Variables
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_VRAM_LIMIT` | size | `0` | ❌ | VRAM limit (0 = auto-detect) |
-| `VORTEX_GPU_DEVICE` | string | `cuda:0` | ❌ | Default GPU device |
-| `VORTEX_CPU_ONLY` | bool | `false` | ❌ | Force CPU-only mode |
-| `VORTEX_PRECISION` | enum | `fp16` | ❌ | Default precision: `fp16`, `fp32`, `bf16` |
+| `VORTEX_VRAM_LIMIT` | size | `0` | Reject | VRAM limit (0 = auto-detect) |
+| `VORTEX_GPU_DEVICE` | string | `cuda:0` | Reject | Default GPU device |
+| `VORTEX_CPU_ONLY` | bool | `false` | Reject | Force CPU-only mode |
+| `VORTEX_PRECISION` | enum | `fp16` | Reject | Default precision: `fp16`, `fp32`, `bf16` |
 
 ### 1.6 Security Variables
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_SANDBOX_ENABLED` | bool | `true` | ❌ | Enable worker sandboxing |
-| `VORTEX_SECCOMP_POLICY` | path | (built-in) | ❌ | Custom Seccomp policy path |
-| `VORTEX_ALLOW_NETWORK` | bool | `false` | ❌ | Allow worker network access |
-| `VORTEX_SCAN_NODES` | bool | `true` | ❌ | Scan custom nodes for malware |
+| `VORTEX_SANDBOX_ENABLED` | bool | `true` | Reject | Enable worker sandboxing |
+| `VORTEX_SECCOMP_POLICY` | path | (built-in) | Reject | Custom Seccomp policy path |
+| `VORTEX_ALLOW_NETWORK` | bool | `false` | Reject | Allow worker network access |
+| `VORTEX_SCAN_NODES` | bool | `true` | Reject | Scan custom nodes for malware |
 
 ### 1.7 Telemetry Variables
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_METRICS_PORT` | int | `11191` | ❌ | Prometheus metrics port |
-| `VORTEX_METRICS_ENABLED` | bool | `true` | ❌ | Enable metrics collection |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | url | - | ❌ | OpenTelemetry collector endpoint |
-| `OTEL_SERVICE_NAME` | string | `vortex-core` | ❌ | Service name for traces |
+| `VORTEX_METRICS_PORT` | int | `11191` | Reject | Prometheus metrics port |
+| `VORTEX_METRICS_ENABLED` | bool | `true` | Reject | Enable metrics collection |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | url | - | Reject | OpenTelemetry collector endpoint |
+| `OTEL_SERVICE_NAME` | string | `vortex-core` | Reject | Service name for traces |
 
 ### 1.8 UI Variables
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_UI_PORT` | int | `11173` | ❌ | Frontend dev server port |
-| `VORTEX_API_URL` | url | `http://localhost:11188` | ❌ | Backend API URL |
-| `VORTEX_WS_URL` | url | `ws://localhost:11189` | ❌ | WebSocket URL |
-| `VORTEX_THEME` | enum | `dark` | ❌ | Default theme: `dark`, `light` |
+| `VORTEX_UI_PORT` | int | `11173` | Reject | Frontend dev server port |
+| `VORTEX_API_URL` | url | `http://localhost:11188` | Reject | Backend API URL |
+| `VORTEX_WS_URL` | url | `ws://localhost:11189` | Reject | WebSocket URL |
+| `VORTEX_THEME` | enum | `dark` | Reject | Default theme: `dark`, `light` |
 
 ### 1.9 Paths & Directories
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `VORTEX_DATA_DIR` | path | `~/.vortex` | ❌ | Data directory |
-| `VORTEX_MODELS_DIR` | path | `~/.vortex/models` | ❌ | Models directory |
-| `VORTEX_OUTPUTS_DIR` | path | `~/.vortex/outputs` | ❌ | Generated outputs |
-| `VORTEX_CACHE_DIR` | path | `~/.vortex/cache` | ❌ | Cache directory |
-| `VORTEX_CUSTOM_NODES` | path | `~/.vortex/custom_nodes` | ❌ | Custom nodes path |
+| `VORTEX_DATA_DIR` | path | `~/.vortex` | Reject | Data directory |
+| `VORTEX_MODELS_DIR` | path | `~/.vortex/models` | Reject | Models directory |
+| `VORTEX_OUTPUTS_DIR` | path | `~/.vortex/outputs` | Reject | Generated outputs |
+| `VORTEX_CACHE_DIR` | path | `~/.vortex/cache` | Reject | Cache directory |
+| `VORTEX_CUSTOM_NODES` | path | `~/.vortex/custom_nodes` | Reject | Custom nodes path |
 
 ---
 
@@ -340,4 +340,4 @@ Variables are loaded in this order (later overrides earlier):
 **Document Status**: COMPLETE  
 **Total Variables**: 45+  
 **Total Settings**: 20+  
-**Ready for Implementation**: ✅
+**Ready for Implementation**: Complete

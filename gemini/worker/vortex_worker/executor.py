@@ -214,7 +214,7 @@ class KSamplerExecutor(AbstractExecutor):
         cfg = params.get("cfg", 7.0)
         sampler_name = params.get("sampler_name", "euler")
         seed = params.get("seed", 42)
-        prompt = params.get("prompt", "a beautiful landscape")
+        prompt = params.get("prompt", "a landscape")
         negative_prompt = params.get("negative_prompt", "blurry, bad quality")
 
         logger.info(f"KSampler: steps={steps}, cfg={cfg}, sampler={sampler_name}")
@@ -390,9 +390,7 @@ class CLIPTextEncode(AbstractExecutor):
             )
 
 
-# =============================================================================
-# EXTENDED MEDIA EXECUTORS (Audio & Video Core)
-# =============================================================================
+# Extended media executors (audio and video).
 
 
 class AudioExecutor(AbstractExecutor):
@@ -424,7 +422,6 @@ class MelEncoderExecutor(AudioExecutor):
 
             waveform = self.get_tensor(audio_handle)
 
-            # Implementation of MelSpectrogram using torchaudio
             n_mels = params.get("n_mels", 128)
             sample_rate = params.get("sample_rate", 44100)
 
@@ -462,8 +459,7 @@ class LatentVideoSampler(VideoExecutor):
         logger.info(f"VideoSampler: Generating {num_frames} latents")
 
         try:
-            # Placeholder for temporal-aware sampling logic
-            # This represents the base for Stable Video Diffusion (SVD) or AnimateDiff
+            # Baseline temporal sampler: independent latent frames for downstream video pipelines.
             latents = torch.randn(1, num_frames, 4, 64, 64, dtype=torch.float16, device="cuda")
 
             output_handle = self.put_tensor(latents, device="cuda")

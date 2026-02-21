@@ -144,7 +144,7 @@ impl<R: TenantRepository, A: AuthorizationService> TenantService<R, A> {
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .expect("Time before epoch")
+            .map_err(|e| TenantError::Database(format!("System clock error: {e}")))?
             .as_secs() as i64;
 
         let tenant = Tenant {

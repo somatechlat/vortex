@@ -4,15 +4,19 @@
 //! Port Authority: 11188 (HTTP)
 
 use axum::{
-    extract::{Path, State, WebSocketUpgrade},
+    extract::{Path, State, WebSocketUpgrade, FromRequestParts},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use axum::http::request::Parts;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
+use dashmap::DashMap;
+use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 
 // ═══════════════════════════════════════════════════════════════
 //                    REQUEST/RESPONSE TYPES
@@ -85,6 +89,49 @@ pub enum WsMessage {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//                    JWT AUTH EXTRACTOR
+// ═══════════════════════════════════════════════════════════════
+
+/// JWT claims from Keycloak token
+#[derive(Debug, Clone, Deserialize)]
+pub struct Claims {
+    pub sub: String,         // user ID
+    pub tenant_id: String,   // custom claim injected by Keycloak mapper
+    pub exp: usize,
+}
+
+/// Authenticated user extractor
+pub struct AuthUser(pub Claims);
+
+#[axum::async_trait]
+impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let auth = parts.headers
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .ok_or_else(|| AppError::Unauthorized("Missing Bearer token".into()))?;
+
+        // Read public key from env (in production: fetch+cache from Keycloak JWKS)
+        let pem = std::env::var("VORTEX_JWT_PUBLIC_KEY")
+            .map_err(|_| AppError::Internal("VORTEX_JWT_PUBLIC_KEY not set".into()))?;
+
+        let key = DecodingKey::from_rsa_pem(pem.as_bytes())
+            .map_err(|e| AppError::Internal(format!("JWT key error: {e}")))?;
+
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.validate_exp = true;
+
+        let token_data = decode::<Claims>(auth, &key, &validation)
+            .map_err(|e| AppError::Unauthorized(format!("Invalid token: {e}")))?;
+
+        Ok(AuthUser(token_data.claims))
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //                    APPLICATION STATE
 // ═══════════════════════════════════════════════════════════════
 
@@ -96,6 +143,8 @@ pub struct AppState {
     pub tenants: Arc<crate::tenant_repo::TenantRepository>,
     pub authz: Arc<crate::authz::SpiceDbClient>,
     pub mcp: Arc<crate::mcp_registry::McpRegistry>,
+    pub shm: Arc<crate::shm::SharedMemory>,
+    pub cancel_tokens: Arc<DashMap<String, CancellationToken>>,
     /// Broadcast channel for WebSocket updates
     pub tx: broadcast::Sender<WsMessage>,
 }
@@ -108,6 +157,7 @@ impl AppState {
         tenants: Arc<crate::tenant_repo::TenantRepository>,
         authz: Arc<crate::authz::SpiceDbClient>,
         mcp: Arc<crate::mcp_registry::McpRegistry>,
+        shm: Arc<crate::shm::SharedMemory>,
     ) -> Self {
         let (tx, _) = broadcast::channel(1024);
         Self {
@@ -117,9 +167,19 @@ impl AppState {
             tenants,
             authz,
             mcp,
+            shm,
+            cancel_tokens: Arc::new(DashMap::new()),
             tx,
         }
     }
+}
+
+fn unix_time_secs() -> Result<i64, AppError> {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| AppError::Internal(format!("time error: {e}")))?
+        .as_secs() as i64;
+    Ok(secs)
 }
 // ═══════════════════════════════════════════════════════════════
 //                    ROUTER
@@ -151,17 +211,15 @@ pub fn create_router(state: Arc<AppState>) -> Router {
 
 async fn submit_graph(
     State(state): State<Arc<AppState>>,
+    auth: AuthUser,
     Json(request): Json<GraphRequest>,
 ) -> Result<Json<GraphResponse>, AppError> {
     let graph_id = uuid::Uuid::new_v4().to_string();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let now = unix_time_secs()?;
 
     let model = crate::entities::graph::Model {
         id: graph_id.clone(),
-        tenant_id: "default".to_string(), // Placeholder until auth context
+        tenant_id: auth.0.tenant_id.clone(),
         name: "Untitled".to_string(),
         version: 1,
         graph_json: request.graph.to_string(),
@@ -196,10 +254,11 @@ async fn get_graph(
 
 async fn execute_graph(
     State(state): State<Arc<AppState>>,
+    auth: AuthUser,
     Path(id): Path<String>,
     Json(_request): Json<ExecuteRequest>,
 ) -> Result<Json<ExecuteResponse>, AppError> {
-    tracing::info!(graph_id = %id, "Executing graph");
+    tracing::info!(graph_id = %id, tenant = %auth.0.tenant_id, "Executing graph");
 
     // 1. Fetch graph from database
     let graph_model = state.graphs.get_by_id(&id).await
@@ -221,10 +280,7 @@ async fn execute_graph(
 
     // 5. Create run record
     let run_id = uuid::Uuid::new_v4().to_string();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let now = unix_time_secs()?;
 
     let run_model = crate::entities::run::Model {
         id: run_id.clone(),
@@ -244,6 +300,10 @@ async fn execute_graph(
     // 7. Spawn execution in background
     let tx = state.tx.clone();
     let run_repo = state.runs.clone();
+    let shm = state.shm.clone();
+    let cancel_token = CancellationToken::new();
+    state.cancel_tokens.insert(run_id.clone(), cancel_token.clone());
+    let cancel_tokens = state.cancel_tokens.clone();
     let run_id_clone = run_id.clone();
     let graph_id = id.clone();
 
@@ -255,6 +315,9 @@ async fn execute_graph(
             execution_plan,
             tx,
             run_repo,
+            shm,
+            cancel_token,
+            output_registry: std::collections::HashMap::new(),
         };
 
         match ctx.execute().await {
@@ -265,6 +328,7 @@ async fn execute_graph(
                 tracing::error!(run_id = %run_id_clone, error = %e, "Execution failed");
             }
         }
+        cancel_tokens.remove(&run_id_clone);
     });
 
     Ok(Json(ExecuteResponse {
@@ -292,10 +356,33 @@ async fn run_status(
 
 /// POST /api/run/:id/cancel - Cancel a run
 async fn cancel_run(
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    tracing::info!("Run {} cancelled", id);
-    Ok(StatusCode::OK)
+    if let Some((_, token)) = state.cancel_tokens.remove(&id) {
+        token.cancel();
+
+        if let Some(mut run) = state.runs.get_by_id(&id).await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+        {
+            run.status = crate::entities::run::RunStatus::Failed;
+            run.error_json = Some(serde_json::json!({"error": "Run cancelled by user"}).to_string());
+            run.completed_at = Some(unix_time_secs()?);
+            state.runs.update(run).await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+        }
+        tracing::info!("Run {} cancelled", id);
+        return Ok(StatusCode::OK);
+    }
+
+    let exists = state.runs.get_by_id(&id).await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .is_some();
+    if exists {
+        Ok(StatusCode::OK)
+    } else {
+        Err(AppError::NotFound(format!("Run {} not found", id)))
+    }
 }
 
 /// GET /api/nodes/mcp - List all discovered MCP tools
@@ -378,6 +465,7 @@ async fn handle_socket(
 pub enum AppError {
     NotFound(String),
     BadRequest(String),
+    Unauthorized(String),
     Internal(String),
 }
 
@@ -386,6 +474,7 @@ impl IntoResponse for AppError {
         let (status, code, message) = match self {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL", msg),
         };
 

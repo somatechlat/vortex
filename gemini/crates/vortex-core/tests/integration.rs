@@ -58,7 +58,7 @@ async fn test_tenant_repo_crud() {
     assert!(fetched.is_some());
     assert_eq!(fetched.unwrap().name, "Test Tenant");
     
-    println!("✅ Tenant CRUD test passed!");
+    println!("Tenant CRUD test passed.");
 }
 
 #[tokio::test]
@@ -71,10 +71,7 @@ async fn test_graph_repo_crud() {
 
     let model = graph::Model {
         id: graph_id.clone(),
-        tenant_id: "test-tenant".to_string(), // In real app, must exist (FK). For now assuming logic doesn't strictly enforce if SeaORM doesn't? 
-        // Actually SeaORM with Postgres might enforce FK if schema has it. 
-        // We should ensure a tenant exists or use a dummy ID if no FK constraint in test DB (but we just migrated).
-        // Let's assume we need a valid tenant if FK exists.
+        tenant_id: "test-tenant".to_string(),
         name: "Test Graph".to_string(),
         version: 1,
         graph_json: "{}".to_string(),
@@ -82,17 +79,12 @@ async fn test_graph_repo_crud() {
         updated_at: now,
     };
     
-    // The entities.rs update replaced owner_id with tenant_id? 
-    // I need to be careful. The previous tool `multi_replace` on entities.rs:
-    // It replaced `owner_id` with `tenant_id`.
-    // So `owner_id` should NOT be here.
-    
     repo.insert(model.clone()).await.expect("Failed to insert graph");
     
     let fetched = repo.get_by_id(&graph_id).await.expect("Failed to get");
     assert_eq!(fetched.unwrap().name, "Test Graph");
 
-    println!("✅ Graph CRUD test passed!");
+    println!("Graph CRUD test passed.");
 }
 
 #[tokio::test]
@@ -117,5 +109,5 @@ async fn test_run_repo_crud() {
     let fetched = repo.get_by_id(&run_id).await.expect("Failed to get");
     assert_eq!(fetched.unwrap().status, run::RunStatus::Pending);
     
-    println!("✅ Run CRUD test passed!");
+    println!("Run CRUD test passed.");
 }

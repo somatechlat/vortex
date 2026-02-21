@@ -2,7 +2,7 @@
 # VORTEX Tiltfile
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# ⚠️  DEPLOYMENT STACK: Colima + Minikube + Tilt (NO DOCKER DESKTOP)
+# DEPLOYMENT STACK: Colima + Minikube + Tilt (NO DOCKER DESKTOP)
 #
 # COMPLETELY ISOLATED CLUSTER (VFKit / Native Provisioning)
 #

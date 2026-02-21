@@ -60,10 +60,23 @@
 ```
 
 ### Font Loading
-```html
-<!-- Required CDN links -->
-<link href="https://cdn.jsdelivr.net/npm/geist@1.0.0/dist/fonts/geist-sans/style.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/geist@1.0.0/dist/fonts/geist-mono/style.css" rel="stylesheet">
+```css
+/* Prefer self-hosted font assets for deterministic builds */
+@font-face {
+  font-family: "Geist Sans";
+  src: url("/fonts/geist-sans.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 ```
 
 ### Type Scale
@@ -112,7 +125,7 @@
 
 ---
 
-## 🎭 COMPONENT PATTERNS
+## Persona COMPONENT PATTERNS
 
 ### Card Pattern (from screenshots)
 ```css
@@ -225,12 +238,12 @@ export default defineConfig({
 
 ### Test ID Convention
 ```svelte
-<!-- ✅ Always use data-testid -->
+<!-- Complete Always use data-testid -->
 <button data-testid="queue-button">Queue</button>
 <input data-testid="prompt-input" />
 <div data-testid="node-{nodeId}">...</div>
 
-<!-- ❌ Never rely on class names or text -->
+<!-- Reject Never rely on class names or text -->
 ```
 
 ### Common Test Patterns

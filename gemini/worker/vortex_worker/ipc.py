@@ -9,11 +9,14 @@ Uses the same protobuf schemas as the Rust host (vortex-protocol).
 
 import socket
 import struct
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 # Import generated protobuf classes
 from .generated import control
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,7 +58,7 @@ class IPCSocket:
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.sock.connect(self.path)
         self.sock.setblocking(False)
-        print(f"[IPC] Connected to {self.path}")
+        logger.info("IPC connected: %s", self.path)
 
     def close(self) -> None:
         """Close the connection."""
@@ -125,14 +128,11 @@ class IPCSocket:
                 outputs=outputs,
             )
 
-            print(f"[IPC] Received job: {job.job_id} for node type: {job.node_type}")
+            logger.debug("IPC received job_id=%s node_type=%s", job.job_id, job.node_type)
             return job
 
         except Exception as e:
-            print(f"[IPC] Decode error: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.exception("IPC decode error: %s", e)
             return None
 
     def send_result(self, result: JobResult) -> None:
@@ -176,7 +176,7 @@ class IPCSocket:
         # Send length prefix (Big-Endian) + data
         length = struct.pack(">I", len(data))
         self.sock.sendall(length + data)
-        print(f"[IPC] Sent result for job: {result.job_id}, success: {result.success}")
+        logger.debug("IPC sent result job_id=%s success=%s", result.job_id, result.success)
 
     def send_error(self, job_id: str, error: str) -> None:
         """Send error response to host."""

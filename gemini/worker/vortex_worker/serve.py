@@ -10,18 +10,18 @@ import json
 import base64
 import logging
 import sys
+from typing import Any
 import numpy as np
 import torch
-import hvac
 from django.conf import settings
 from django.core.wsgi import get_wsgi_application
 from django.urls import path
-from ninja import NinjaAPI, Schema
 from django.http import HttpResponse
 
 # Initialize VORTEX Components
 from .shm import ShmArena
 from .executor import ExecutorRegistry, TensorHandle
+from .secrets import get_vault_secret
 # Ensure Cloud Executors are registered
 from . import extras
 
@@ -41,33 +41,6 @@ def init_shm():
         logger.info("SHM Arena initialized")
     except Exception as e:
         logger.error(f"Failed to init SHM: {e}")
-
-# -----------------------------------------------------------------------------
-# Vault Integration (Strict No-Env Secrets)
-# -----------------------------------------------------------------------------
-
-def get_vault_secret(path: str, key: str, default=None) -> str:
-    """Fetch a secret from HashiCorp Vault. Falls back strictly if configured."""
-    vault_addr = os.getenv("VAULT_ADDR", "http://127.0.0.1:8200")
-    vault_token = os.getenv("VAULT_TOKEN") # Token itself must be in ENV or disk
-
-    if not vault_token:
-        logger.warning("VAULT_TOKEN not found inside container. Using insecure fallback for build/test.")
-        return default if default else "django-insecure-vault-missing"
-
-    try:
-        client = hvac.Client(url=vault_addr, token=vault_token)
-        if not client.is_authenticated():
-            logger.error("Vault authentication failed")
-            return default
-
-        # Adjust mount point as per Soma/Vortex standard (vortex/config)
-        # Assuming KV v2
-        response = client.secrets.kv.v2.read_secret_version(mount_point='secret', path=path)
-        return response['data']['data'].get(key, default)
-    except Exception as e:
-        logger.error(f"Failed to fetch secret from Vault: {e}")
-        return default
 
 # -----------------------------------------------------------------------------
 # Django Configuration (Single File)
@@ -105,6 +78,8 @@ if not settings.configured:
 # -----------------------------------------------------------------------------
 # Django Ninja API
 # -----------------------------------------------------------------------------
+
+from ninja import NinjaAPI, Schema
 
 api = NinjaAPI(urls_namespace='vortex')
 

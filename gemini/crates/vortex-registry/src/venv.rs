@@ -39,10 +39,12 @@ impl VenvManager {
     /// Create a new virtual environment
     pub async fn create(&mut self, name: &str) -> Result<VenvInfo, std::io::Error> {
         let env_path = self.base_path.join(name);
+        let env_path_str = env_path.to_str()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "venv path is not valid UTF-8"))?;
         
         // Run python -m venv
         let status = tokio::process::Command::new(&self.python_path)
-            .args(["-m", "venv", env_path.to_str().unwrap()])
+            .args(["-m", "venv", env_path_str])
             .status()
             .await?;
         

@@ -83,16 +83,24 @@ pub enum PermissionResult {
 pub struct SpiceDbConfig {
     pub endpoint: String,
     pub preshared_key: String,
+    pub skip_authz_in_sandbox: bool,
+    pub is_sandbox: bool,
 }
 
 impl SpiceDbConfig {
     /// Load from environment
     pub fn from_env() -> Result<Self, TenantError> {
+        let is_sandbox = std::env::var("VORTEX_MODE")
+            .unwrap_or_else(|_| "sandbox".to_string())
+            .to_lowercase() == "sandbox";
+
         Ok(Self {
             endpoint: std::env::var("SPICEDB_ENDPOINT")
                 .map_err(|_| TenantError::Authorization("SPICEDB_ENDPOINT not set".into()))?,
             preshared_key: std::env::var("SPICEDB_KEY")
                 .unwrap_or_else(|_| String::new()), // Optional for dev
+            skip_authz_in_sandbox: std::env::var("SKIP_AUTHZ_IN_SANDBOX").is_ok(),
+            is_sandbox,
         })
     }
 }
@@ -117,54 +125,64 @@ impl SpiceDbClient {
     /// Check if subject has permission on resource
     pub async fn check_permission(
         &self,
-        resource: &ObjectRef,
+        subject_id: &str,
+        resource_type: &str,
+        resource_id: &str,
         permission: &str,
-        subject: &SubjectRef,
     ) -> Result<PermissionResult, TenantError> {
-        // Log the check for tracing
-        tracing::debug!(
-            resource = %resource.to_string(),
-            permission = %permission,
-            subject = %subject.object.to_string(),
-            "SpiceDB permission check"
-        );
+        if self.config.skip_authz_in_sandbox && self.config.is_sandbox {
+            return Ok(PermissionResult::Allowed);
+        }
 
-        // gRPC call to SpiceDB
-        // In production: use generated proto client
-        // For now: make HTTP request to SpiceDB HTTP API (port 8443)
-        let url = format!(
-            "http://{}/v1/permissions/check",
-            self.config.endpoint.replace(":50051", ":8443")
-        );
-
+        // Build SpiceDB /v1/permissions/check request body
         let body = serde_json::json!({
-            "consistency": {"fully_consistent": true},
             "resource": {
-                "object_type": resource.object_type,
-                "object_id": resource.object_id
+                "objectType": resource_type,
+                "objectId":   resource_id
             },
             "permission": permission,
             "subject": {
                 "object": {
-                    "object_type": subject.object.object_type,
-                    "object_id": subject.object.object_id
+                    "objectType": "user",
+                    "objectId":   subject_id
                 }
             }
         });
 
-        // HTTP client call (requires reqwest)
-        // For unit tests without network: return based on config
-        if self.config.endpoint.contains("localhost") || self.config.endpoint.contains("spicedb") {
-            tracing::info!(
-                resource = %resource.to_string(),
-                permission = %permission,
-                "SpiceDB check - returning allowed for development"
-            );
-            return Ok(PermissionResult::Allowed);
+        // Derive REST base URL from gRPC endpoint string
+        // endpoint is 'spicedb:50051'; REST gateway is at :8080
+        let host = self.config.endpoint
+            .split(':').next()
+            .unwrap_or("spicedb");
+        let url = format!("http://{}:8080/v1/permissions/check", host);
+
+        let client = reqwest::Client::new();
+        let resp = client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.config.preshared_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| TenantError::Authorization(
+                format!("SpiceDB request failed: {e}")))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            return Err(TenantError::Authorization(
+                format!("SpiceDB returned {}: {}", status, text)));
         }
 
-        tracing::warn!("SpiceDB HTTP check not fully implemented - returning denied");
-        Ok(PermissionResult::Denied)
+        let result: serde_json::Value = resp.json().await
+            .map_err(|e| TenantError::Authorization(
+                format!("SpiceDB JSON decode failed: {e}")))?;
+
+        match result["permissionship"].as_str() {
+            Some("PERMISSIONSHIP_HAS_PERMISSION") => Ok(PermissionResult::Allowed),
+            Some("PERMISSIONSHIP_NO_PERMISSION")  => Ok(PermissionResult::Denied),
+            _ => Err(TenantError::Authorization(
+                format!("Unexpected permissionship: {:?}", result["permissionship"]))),
+        }
     }
 
     /// Write a relationship tuple
@@ -213,9 +231,10 @@ impl SpiceDbClient {
         user_id: &str,
     ) -> Result<bool, TenantError> {
         let result = self.check_permission(
-            &ObjectRef::new("tenant", tenant_id),
+            user_id,
+            "tenant",
+            tenant_id,
             "manage",
-            &SubjectRef::user(user_id),
         ).await?;
         Ok(result == PermissionResult::Allowed)
     }
@@ -227,9 +246,10 @@ impl SpiceDbClient {
         user_id: &str,
     ) -> Result<bool, TenantError> {
         let result = self.check_permission(
-            &ObjectRef::new("graph", graph_id),
+            user_id,
+            "graph",
+            graph_id,
             "view",
-            &SubjectRef::user(user_id),
         ).await?;
         Ok(result == PermissionResult::Allowed)
     }
@@ -285,16 +305,14 @@ impl AuthorizationService for SpiceDbClient {
         Box::pin(async move {
             let (obj_type, obj_id) = object.split_once(':')
                 .ok_or_else(|| TenantError::Authorization("Invalid object format".into()))?;
-            let (subj_type, subj_id) = subject.split_once(':')
+            let (_subj_type, subj_id) = subject.split_once(':')
                 .ok_or_else(|| TenantError::Authorization("Invalid subject format".into()))?;
 
             let result = self.check_permission(
-                &ObjectRef::new(obj_type, obj_id),
+                subj_id,
+                obj_type,
+                obj_id,
                 &permission,
-                &SubjectRef {
-                    object: ObjectRef::new(subj_type, subj_id),
-                    optional_relation: None,
-                },
             ).await?;
 
             Ok(result == PermissionResult::Allowed)
@@ -337,16 +355,19 @@ mod tests {
         let config = SpiceDbConfig {
             endpoint: "localhost:50051".to_string(),
             preshared_key: "test-key".to_string(),
+            skip_authz_in_sandbox: true,
+            is_sandbox: true,
         };
         let client = SpiceDbClient::new(config);
-        
+
         // Dev mode should allow
         let result = client.check_permission(
-            &ObjectRef::new("graph", "test"),
+            "user1",
+            "graph",
+            "test",
             "view",
-            &SubjectRef::user("user1"),
         ).await.unwrap();
-        
+
         assert_eq!(result, PermissionResult::Allowed);
     }
 }

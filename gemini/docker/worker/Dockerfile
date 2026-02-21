@@ -7,7 +7,8 @@ RUN apt-get update \
 WORKDIR /app/worker
 COPY worker /app/worker
 
-RUN pip install --no-cache-dir -r requirements.txt
+ARG WORKER_REQUIREMENTS=requirements.sandbox.txt
+RUN pip install --no-cache-dir -r "${WORKER_REQUIREMENTS}"
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/worker

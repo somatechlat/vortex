@@ -1,12 +1,12 @@
-"""Shared Memory Arena Module with DLPack Support - FIXED for Rust compatibility."""
+"""Shared memory arena module with DLPack support."""
 
 import ctypes
 import mmap
-import sys
 import time
-import os  # CRITICAL: Import before sandbox
+import os
+import logging
 try:
-    import posix_ipc  # CRITICAL: Import before sandbox
+    import posix_ipc
 except ImportError:
     posix_ipc = None
 
@@ -15,11 +15,10 @@ try:
     DLPACK_AVAILABLE = True
 except ImportError:
     DLPACK_AVAILABLE = False
-    print("WARNING: torch not available")
 
-# ═══════════════════════════════════════════════════════════════
-#                    CTYPES STRUCTURES (Rust-compatible)
-# ═══════════════════════════════════════════════════════════════
+logger = logging.getLogger(__name__)
+if not DLPACK_AVAILABLE:
+    logger.warning("torch not available; DLPack features disabled")
 
 class WorkerSlot(ctypes.Structure):
     _fields_ = [
@@ -96,13 +95,14 @@ class ShmArena:
             self.header.version = 1
             self.header.flags = 0
             self.header.clock_tick = 0
-            for i in range(40): self.header.reserved[i] = 0
+            for i in range(40):
+                self.header.reserved[i] = 0
         
         if self.header.magic != ShmHeader.MAGIC:
             raise RuntimeError(f"Invalid SHM magic: {self.header.magic}, expected {ShmHeader.MAGIC}")
         
         if not DLPACK_AVAILABLE:
-            print("WARNING: DLPack not available")
+            logger.warning("DLPack not available")
 
     def close(self) -> None:
         self.mm.close()

@@ -10,7 +10,7 @@
 ## 1. Introduction
 
 ### 1.1 Purpose
-This SRS specifies the **Visual and Interaction Design** for the VORTEX "Flow Stream" interface. It replaces the traditional Node Graph with a revolutionary **"Vertical Rack" Paradigm**, focusing on semantic signal flow, glassmorphic aesthetics, and cinematic immersion.
+This SRS specifies the **Visual and Interaction Design** for the VORTEX "Flow Stream" interface. It replaces the traditional Node Graph with a advanced **"Vertical Rack" Paradigm**, focusing on semantic signal flow, glassmorphic aesthetics, and cinematic immersion.
 
 ### 1.2 Scope
 The UI defines the **"Vortex Rack"**, a vertical stack of atomic processing units connected by a unified **"Signal Bus"**.
@@ -110,7 +110,7 @@ The UI defines the **"Vortex Rack"**, a vertical stack of atomic processing unit
 │  └─┘                                                   │
 │      [ Thumbnail / Content Area ]                      │
 │                                                        │
-│   STATUS: READY 🟢                   VRAM: 4.2GB       │
+│   STATUS: READY Done                   VRAM: 4.2GB       │
 └────────────────────────────────────────────────────────┘
 ```
 *   **Tap (Left)**: A connector dot that aligns with a Bus Lane. Clicking it toggles connection.

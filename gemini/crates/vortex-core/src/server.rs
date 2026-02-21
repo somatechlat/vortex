@@ -26,6 +26,7 @@ pub struct VortexServer {
     tenant_repo: Arc<TenantRepository>,
     authz: Arc<SpiceDbClient>,
     mcp: Arc<crate::mcp_registry::McpRegistry>,
+    shm: Arc<crate::shm::SharedMemory>,
 }
 
 impl VortexServer {
@@ -42,6 +43,9 @@ impl VortexServer {
         // MCP Toolbox Registry
         let mcp = Arc::new(crate::mcp_registry::McpRegistry::new());
 
+        // Shared Memory (64GB Arena)
+        let shm = Arc::new(crate::shm::SharedMemory::open(true)?);
+
         Ok(Self {
             db,
             graph_repo,
@@ -49,6 +53,7 @@ impl VortexServer {
             tenant_repo,
             authz,
             mcp,
+            shm,
         })
     }
 
@@ -61,6 +66,7 @@ impl VortexServer {
             self.tenant_repo.clone(),
             self.authz.clone(),
             self.mcp.clone(),
+            self.shm.clone(),
         ));
         create_router(state)
     }
@@ -109,5 +115,16 @@ pub async fn start_server() -> VortexResult<()> {
         .unwrap_or(11188);
 
     let server = VortexServer::from_config(config, db).await?;
+
+    // Start background clock tick (1 tick = 1ms)
+    let shm_clone = server.shm.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(1));
+        loop {
+            interval.tick().await;
+            shm_clone.header().tick();
+        }
+    });
+
     server.run(port).await
 }

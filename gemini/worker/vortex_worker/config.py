@@ -3,6 +3,7 @@
 import os
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 
 def parse_slot_id(value: str) -> int:
@@ -23,6 +24,11 @@ HEARTBEAT_INTERVAL_MS = 1000
 JOB_TIMEOUT_MS = 1000
 
 
+def runtime_default_device(runtime_mode: str) -> str:
+    """Return default tensor device for the selected runtime mode."""
+    return "cpu" if runtime_mode == "cpu" else "cuda"
+
+
 @dataclass
 class WorkerConfig:
     """Configuration for VORTEX worker."""
@@ -30,6 +36,8 @@ class WorkerConfig:
     slot_id: int
     shm_name: str
     ipc_path: str
+    runtime_mode: str = "cpu"
+    db_password: Optional[str] = None
     debug: bool = False
 
     @classmethod
@@ -40,5 +48,6 @@ class WorkerConfig:
             slot_id=parse_slot_id(raw_slot),
             shm_name=os.getenv("VORTEX_SHM_NAME", "/vortex-shm"),
             ipc_path=os.getenv("VORTEX_IPC_PATH", "/tmp/vortex.sock"),
+            runtime_mode=os.getenv("VORTEX_RUNTIME_MODE", "cpu").lower(),
             debug=os.getenv("VORTEX_DEBUG", "").lower() in ("1", "true"),
         )
