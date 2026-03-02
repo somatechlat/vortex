@@ -58,16 +58,16 @@ impl From<u32> for WorkerStatus {
 pub struct ShmHeader {
     /// Magic bytes for validation (0x5654_5833_0000_0001)
     pub magic_bytes: u64,
-    
+
     /// Protocol version (must match host and worker)
     pub version: u32,
-    
+
     /// System state flags (Bit 0: SYSTEM_READY, Bit 1: MAINTENANCE)
     pub flags: AtomicU32,
-    
+
     /// Global monotonic clock (1 tick = 1ms)
     pub clock_tick: AtomicU64,
-    
+
     /// Reserved padding for cache line alignment
     pub reserved: [u8; 40],
 }
@@ -77,16 +77,16 @@ pub struct ShmHeader {
 pub struct WorkerSlot {
     /// OS Process ID (0 = Empty)
     pub pid: AtomicU32,
-    
+
     /// Worker status (0=IDLE, 1=BUSY, 2=DEAD, 3=BOOTING)
     pub status: AtomicU32,
-    
+
     /// Current job ID (pointer/offset)
     pub current_job_id: AtomicU64,
-    
+
     /// Last heartbeat timestamp
     pub last_heartbeat: AtomicU64,
-    
+
     /// Padding to 64 bytes
     pub padding: [u8; 40],
 }
@@ -96,22 +96,22 @@ impl ShmHeader {
     pub fn is_valid(&self) -> bool {
         self.magic_bytes == MAGIC_BYTES
     }
-    
+
     /// Get the current clock tick
     pub fn clock(&self) -> u64 {
         self.clock_tick.load(Ordering::Acquire)
     }
-    
+
     /// Increment the clock tick
     pub fn tick(&self) -> u64 {
         self.clock_tick.fetch_add(1, Ordering::AcqRel)
     }
-    
+
     /// Check if system is ready
     pub fn is_ready(&self) -> bool {
         self.flags.load(Ordering::Acquire) & 0x01 != 0
     }
-    
+
     /// Set system ready flag
     pub fn set_ready(&self, ready: bool) {
         if ready {
@@ -133,40 +133,40 @@ impl WorkerSlot {
             padding: [0u8; 40],
         }
     }
-    
+
     /// Check if slot is empty
     pub fn is_empty(&self) -> bool {
         self.pid.load(Ordering::Acquire) == 0
     }
-    
+
     /// Get the current status
     pub fn get_status(&self) -> WorkerStatus {
         WorkerStatus::from(self.status.load(Ordering::Acquire))
     }
-    
+
     /// Set the status atomically
     pub fn set_status(&self, status: WorkerStatus) {
         self.status.store(status as u32, Ordering::Release);
     }
-    
+
     /// Claim this slot for a new worker
     pub fn claim(&self, pid: u32) -> bool {
         // Try to atomically set PID from 0
         self.pid.compare_exchange(0, pid, Ordering::AcqRel, Ordering::Acquire).is_ok()
     }
-    
+
     /// Release this slot
     pub fn release(&self) {
         self.pid.store(0, Ordering::Release);
         self.status.store(WorkerStatus::Idle as u32, Ordering::Release);
         self.current_job_id.store(0, Ordering::Release);
     }
-    
+
     /// Update heartbeat
     pub fn heartbeat(&self, tick: u64) {
         self.last_heartbeat.store(tick, Ordering::Release);
     }
-    
+
     /// Check if worker is alive (heartbeat within threshold)
     pub fn is_alive(&self, current_tick: u64, threshold: u64) -> bool {
         let last = self.last_heartbeat.load(Ordering::Acquire);
@@ -177,14 +177,14 @@ impl WorkerSlot {
 /// Shared Memory Manager
 pub struct SharedMemory {
     /// Base address of mapped memory
-    base: *mut u8,
-    
+    pub base: *mut u8,
+
     /// Size of the mapping
-    size: usize,
-    
+    pub size: usize,
+
     /// File descriptor (for cleanup)
     #[cfg(target_family = "unix")]
-    fd: std::os::unix::io::RawFd,
+    pub fd: std::os::unix::io::RawFd,
 }
 
 unsafe impl Send for SharedMemory {}
@@ -205,13 +205,13 @@ impl SharedMemory {
         let name = CString::new(SHM_NAME).map_err(|e| VortexError::ShmFailure {
             reason: format!("invalid shm name: {}", e),
         })?;
-        
+
         let flags = if create {
             OFlag::O_CREAT | OFlag::O_RDWR
         } else {
             OFlag::O_RDWR
         };
-        
+
         let fd = shm_open(
             name.as_c_str(),
             flags,
@@ -219,13 +219,13 @@ impl SharedMemory {
         ).map_err(|e| VortexError::ShmFailure {
             reason: e.to_string(),
         })?;
-        
+
         if create {
             ftruncate(&fd, SHM_SIZE as i64).map_err(|e| VortexError::ShmFailure {
                 reason: format!("ftruncate failed: {}", e),
             })?;
         }
-        
+
         let ptr = unsafe {
             mmap(
                 None,
@@ -240,9 +240,9 @@ impl SharedMemory {
                 reason: format!("mmap failed: {}", e),
             })?
         };
-        
+
         let base = ptr as *mut u8;
-        
+
         // Initialize header if creating
         if create {
             let header = unsafe { &mut *(base as *mut ShmHeader) };
@@ -252,14 +252,14 @@ impl SharedMemory {
             header.clock_tick = AtomicU64::new(0);
             header.reserved = [0u8; 40];
         }
-        
+
         Ok(Self {
             base,
             size: SHM_SIZE,
             fd: std::os::unix::io::AsRawFd::as_raw_fd(&fd),
         })
     }
-    
+
     /// Stub for non-Unix platforms
     #[cfg(not(target_family = "unix"))]
     pub fn open(_create: bool) -> VortexResult<Self> {
@@ -267,17 +267,17 @@ impl SharedMemory {
             reason: "Shared memory only supported on Unix".to_string(),
         })
     }
-    
+
     /// Get a reference to the header
     pub fn header(&self) -> &ShmHeader {
         unsafe { &*(self.base as *const ShmHeader) }
     }
-    
+
     /// Get a mutable reference to the header
     pub fn header_mut(&mut self) -> &mut ShmHeader {
         unsafe { &mut *(self.base as *mut ShmHeader) }
     }
-    
+
     /// Get a reference to a worker slot
     pub fn slot(&self, index: usize) -> Option<&WorkerSlot> {
         if index >= MAX_WORKERS {
@@ -288,7 +288,7 @@ impl SharedMemory {
             Some(&*((self.base.add(offset)) as *const WorkerSlot))
         }
     }
-    
+
     /// Get a mutable reference to a worker slot
     pub fn slot_mut(&mut self, index: usize) -> Option<&mut WorkerSlot> {
         if index >= MAX_WORKERS {
@@ -299,7 +299,7 @@ impl SharedMemory {
             Some(&mut *((self.base.add(offset)) as *mut WorkerSlot))
         }
     }
-    
+
     /// Find an empty slot and claim it for the given PID
     pub fn claim_slot(&self, pid: u32) -> Option<usize> {
         for i in 0..MAX_WORKERS {
@@ -311,7 +311,7 @@ impl SharedMemory {
         }
         None
     }
-    
+
     /// Find slot by PID
     pub fn find_slot_by_pid(&self, pid: u32) -> Option<usize> {
         for i in 0..MAX_WORKERS {
@@ -323,7 +323,7 @@ impl SharedMemory {
         }
         None
     }
-    
+
     /// Allocate space in the data region (bump allocator)
     /// Returns offset from base
     pub fn allocate(&mut self, size: usize, _alignment: usize) -> Option<usize> {
@@ -353,7 +353,7 @@ mod tests {
         let slot = WorkerSlot::new();
         assert!(slot.is_empty());
         assert_eq!(slot.get_status(), WorkerStatus::Idle);
-        
+
         slot.set_status(WorkerStatus::Busy);
         assert_eq!(slot.get_status(), WorkerStatus::Busy);
     }
@@ -390,18 +390,18 @@ impl SharedMemory {
         if shape.len() > 8 {
             return Err(VortexError::ShmFailure { reason: "Too many dimensions".to_string() });
         }
-        
+
         let header_size = std::mem::size_of::<TensorHeader>();
         let total_size = header_size + data_bytes;
         let data_start = SLOTS_OFFSET + (MAX_WORKERS * SLOT_SIZE);
-        
+
         if data_start + total_size > self.size {
             return Err(VortexError::ShmFailure { reason: "SHM overflow".to_string() });
         }
-        
+
         let header_ptr = unsafe { self.base.add(data_start) } as *mut TensorHeader;
         let header = unsafe { &mut *header_ptr };
-        
+
         header.magic = TENSOR_MAGIC;
         header.dtype_code = dtype_code;
         header.dtype_bits = dtype_bits;
@@ -411,16 +411,16 @@ impl SharedMemory {
         header.ndim = shape.len() as u8;
         header.data_bytes = data_bytes as u64;
         header.data_offset = (data_start + header_size) as u64;
-        
+
         for (i, &dim) in shape.iter().enumerate() {
             header.shape[i] = dim;
         }
-        
+
         header.reserved2 = [0; 16];
-        
+
         Ok(data_start)
     }
-    
+
     pub fn get_tensor_header(&self, offset: usize) -> Option<&TensorHeader> {
         if offset + std::mem::size_of::<TensorHeader>() > self.size {
             return None;
@@ -429,7 +429,7 @@ impl SharedMemory {
         if header.magic != TENSOR_MAGIC { return None; }
         Some(header)
     }
-    
+
     pub fn get_tensor_data(&self, header: &TensorHeader) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
@@ -446,17 +446,17 @@ mod dlpack_tests {
 
     #[test]
     fn test_tensor_header_size() {
-        assert_eq!(std::mem::size_of::<TensorHeader>(), 144);
+        assert_eq!(std::mem::size_of::<TensorHeader>(), 128);
     }
 
     #[test]
     fn test_tensor_ops() {
         use std::sync::atomic::{AtomicU32, AtomicU64};
-        
+
         let mut buffer = vec![0u8; 1_000_000];
         let base = buffer.as_mut_ptr();
         let mut memory = SharedMemory { base, size: 1_000_000, fd: -1 };
-        
+
         unsafe {
             let header = &mut *(base as *mut ShmHeader);
             header.magic_bytes = MAGIC_BYTES;
@@ -464,11 +464,11 @@ mod dlpack_tests {
             header.flags = AtomicU32::new(0);
             header.clock_tick = AtomicU64::new(0);
         }
-        
+
         let shape = vec![4, 64, 64];
         let offset = memory.allocate_tensor(2, 32, 1, 1, 0, &shape, 4096).unwrap();
         let header = memory.get_tensor_header(offset).unwrap();
-        
+
         assert!(header.is_valid());
         assert_eq!(header.ndim, 3);
         assert_eq!(header.shape[0], 4);

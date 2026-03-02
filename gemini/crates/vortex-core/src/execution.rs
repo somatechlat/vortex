@@ -75,7 +75,10 @@ impl ExecutionContext {
             .map_err(|e| VortexError::Internal(format!("set_read_timeout: {e}")))?;
 
         // 4. Execute each node in order
-        for node_id in &self.execution_plan.execution_order {
+        // Clone order to avoid borrow conflicts during mutable calls
+        let execution_order: Vec<String> = self.execution_plan.execution_order.clone();
+
+        for node_id in &execution_order {
             if self.cancel_token.is_cancelled() {
                 let mut run = self.run_repo.get_by_id(&self.run_id).await
                     .map_err(|e| VortexError::Internal(e.to_string()))?
@@ -100,14 +103,58 @@ impl ExecutionContext {
             let node = self.graph.nodes.get(node_id)
                 .ok_or_else(|| VortexError::Internal(format!("Node {} not found", node_id)))?;
 
-            // 5. Build JobRequest
+            // 5. Check if node is an MCP tool - Proxy to Django if it is
+            if node.op_type.starts_with("mcp.") || node.op_type.starts_with("odoo.") {
+                tracing::info!(node_id = %node_id, op_type = %node.op_type, "Proxying to Django MCP Bridge");
+
+                // Proxy to Django Admin API
+                let mcp_url = format!("http://localhost:8000/api/mcp/call/{}", node.op_type);
+                let client = reqwest::Client::new();
+                let res = client.post(mcp_url)
+                    .json(&node.params)
+                    .send()
+                    .await;
+
+                match res {
+                    Ok(resp) if resp.status().is_success() => {
+                        let job_result = JobResult {
+                            job_id: format!("{}_{}", self.run_id, node_id),
+                            success: true,
+                            outputs: vec![TensorOutput {
+                                name: "result".into(),
+                                tensor: None,
+                            }],
+                            error: None,
+                            metrics: Some(vortex_protocol::control::JobMetrics {
+                                execution_us: 1000,
+                                peak_vram_bytes: 0,
+                                tokens_processed: 0,
+                            }),
+                        };
+                        self.handle_job_result(node_id, job_result, pid).await?;
+                        continue;
+                    }
+                    Ok(resp) => {
+                        self.handle_error(&node_id, format!("Django MCP Error: {}", resp.status())).await?;
+                        supervisor.shutdown()?;
+                        return Ok(RunStatus::Failed);
+                    }
+                    Err(e) => {
+                        self.handle_error(&node_id, format!("Django Connectivity Error: {}", e)).await?;
+                        supervisor.shutdown()?;
+                        return Ok(RunStatus::Failed);
+                    }
+                }
+            }
+
+            // 6. Build JobRequest for Worker
             let job_request = self.build_job_request(node_id, &node.op_type, &node.params)?;
 
-            // 6. Send via IPC
+            // 7. Send via IPC
             conn.send_job_request(&job_request)
                 .map_err(|e| VortexError::Internal(format!("IPC send failed: {}", e)))?;
 
-            // 7. Wait for result (30s timeout set above; if worker crashes, read returns error)
+            // 8. Wait for result (30s timeout set above; if worker crashes, read returns error)
             let job_result = conn.receive_job_result()
                 .map_err(|e| {
                     supervisor.kill_worker(pid).ok();
@@ -116,76 +163,7 @@ impl ExecutionContext {
                     ))
                 })?;
 
-            // 8. Update progress
-            if job_result.success {
-                self.tx.send(WsMessage::NodeComplete {
-                    run_id: self.run_id.clone(),
-                    node_id: node_id.clone(),
-                    duration_ms: job_result.metrics.as_ref().map(|m| m.execution_us / 1000).unwrap_or(0),
-                }).ok();
-
-                // Store all outputs from this node so downstream nodes can reference them
-                for output in job_result.outputs {
-                    tracing::debug!(
-                        node_id = %node_id,
-                        output_name = %output.name,
-                        "Registering output tensor"
-                    );
-                    self.output_registry.insert(
-                        (node_id.clone(), output.name.clone()),
-                        output,
-                    );
-                }
-
-                // Log metrics
-                if let Some(metrics) = job_result.metrics {
-                    tracing::info!(
-                        node = %node_id,
-                        duration_us = %metrics.execution_us,
-                        peak_vram = %metrics.peak_vram_bytes,
-                        "Node completed"
-                    );
-
-                    // Store in run_steps table
-                    let _ = self.run_repo.insert_step(
-                        &self.run_id,
-                        node_id,
-                        pid,
-                        metrics.execution_us as i64,
-                        (metrics.peak_vram_bytes / (1024 * 1024)) as i64,
-                    ).await;
-                }
-            } else {
-                // Job failed
-                let error_msg = job_result.error.as_ref()
-                    .map(|e| format!("{}: {}", e.code, e.message))
-                    .unwrap_or_else(|| "Unknown error".to_string());
-
-                self.tx.send(WsMessage::RunComplete {
-                    run_id: self.run_id.clone(),
-                    success: false,
-                    error: Some(error_msg.clone()),
-                }).ok();
-
-                // Update run status to FAILED
-                let mut run = self.run_repo.get_by_id(&self.run_id).await
-                    .map_err(|e| VortexError::Internal(e.to_string()))?
-                    .ok_or_else(|| VortexError::Internal("Run not found".to_string()))?;
-
-                run.status = RunStatus::Failed;
-                run.error_json = Some(serde_json::json!({"error": error_msg}).to_string());
-                run.completed_at = Some(std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_err(|e| VortexError::Internal(format!("time error: {e}")))?
-                    .as_secs() as i64);
-
-                self.run_repo.update(run).await
-                    .map_err(|e| VortexError::Internal(e.to_string()))?;
-
-                // Cleanup and return
-                supervisor.shutdown()?;
-                return Ok(RunStatus::Failed);
-            }
+            self.handle_job_result(node_id, job_result, pid).await?;
         }
 
         // 9. All nodes complete - cleanup
@@ -213,6 +191,60 @@ impl ExecutionContext {
         }).ok();
 
         Ok(RunStatus::Completed)
+    }
+
+    async fn handle_job_result(&mut self, node_id: &String, job_result: JobResult, pid: i32) -> VortexResult<()> {
+        if job_result.success {
+            self.tx.send(WsMessage::NodeComplete {
+                run_id: self.run_id.clone(),
+                node_id: node_id.clone(),
+                duration_ms: job_result.metrics.as_ref().map(|m| m.execution_us / 1000).unwrap_or(0),
+            }).ok();
+
+            for output in job_result.outputs {
+                self.output_registry.insert((node_id.clone(), output.name.clone()), output);
+            }
+
+            if let Some(metrics) = job_result.metrics {
+                let _ = self.run_repo.insert_step(
+                    &self.run_id,
+                    node_id,
+                    pid,
+                    metrics.execution_us as i64,
+                    (metrics.peak_vram_bytes / (1024 * 1024)) as i64,
+                ).await;
+            }
+            Ok(())
+        } else {
+            let error_msg = job_result.error.as_ref()
+                .map(|e| format!("{}: {}", e.code, e.message))
+                .unwrap_or_else(|| "Unknown error".to_string());
+            self.handle_error(node_id, error_msg).await
+        }
+    }
+
+    async fn handle_error(&self, node_id: &str, error_msg: String) -> VortexResult<()> {
+        self.tx.send(WsMessage::RunComplete {
+            run_id: self.run_id.clone(),
+            success: false,
+            error: Some(error_msg.clone()),
+        }).ok();
+
+        let mut run = self.run_repo.get_by_id(&self.run_id).await
+            .map_err(|e| VortexError::Internal(e.to_string()))?
+            .ok_or_else(|| VortexError::Internal("Run not found".to_string()))?;
+
+        run.status = RunStatus::Failed;
+        run.error_json = Some(serde_json::json!({"error": error_msg}).to_string());
+        run.completed_at = Some(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| VortexError::Internal(format!("time error: {e}")))?
+            .as_secs() as i64);
+
+        self.run_repo.update(run).await
+            .map_err(|e| VortexError::Internal(e.to_string()))?;
+
+        Ok(())
     }
 
     /// Build JobRequest from node data
@@ -269,6 +301,13 @@ mod tests {
 
         let (tx, _) = broadcast::channel(10);
 
+        let mut shm_buffer = vec![0u8; 1024 * 1024];
+        let shm = Arc::new(crate::shm::SharedMemory {
+            base: shm_buffer.as_mut_ptr(),
+            size: 1024 * 1024,
+            fd: -1,
+        });
+
         let mut ctx = ExecutionContext {
             run_id: "test_run".into(),
             graph_id: "test_graph".into(),
@@ -281,7 +320,7 @@ mod tests {
             },
             tx,
             run_repo: Arc::new(crate::run_repo::RunRepository::new(Arc::new(crate::db::Database::new_mock()))),
-            shm: Arc::new(crate::shm::SharedMemory::open(false).unwrap()),
+            shm,
             cancel_token: CancellationToken::new(),
             output_registry: HashMap::new(),
         };

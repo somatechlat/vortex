@@ -1,0 +1,61 @@
+:root {
+  /* Mitchell Hybrid Palette */
+  --vtx-void: #0a0a0a;
+  --vtx-teal-deep: #0F4C5C;
+  --vtx-mint: #98DDCA;
+  --vtx-cream: #F5F5F5;
+  --vtx-glass: rgba(255, 255, 255, 0.05);
+  --vtx-glass-border: rgba(255, 255, 255, 0.1);
+  --vtx-glass-active: rgba(255, 255, 255, 0.2);
+
+  /* Signal Bus Lanes */
+  --vtx-bus-1: #98DDCA;
+  --vtx-bus-2: #0F4C5C;
+  --vtx-bus-3: #c4b5fd;
+
+  /* UI Tokens */
+  --vtx-radius: 18px;
+  --vtx-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  --vtx-blur: 24px;
+  --vtx-transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Space & Sizing */
+  --vtx-space-xs: 4px;
+  --vtx-space-sm: 8px;
+  --vtx-space-md: 16px;
+  --vtx-space-lg: 24px;
+  --vtx-blade-min-height: 120px;
+
+  /* Typography */
+  --vtx-font-sans: 'Geist Sans', system-ui, -apple-system, sans-serif;
+  --vtx-font-mono: 'Geist Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--vtx-void);
+  color: var(--vtx-cream);
+  font-family: var(--vtx-font-sans);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+#app {
+  height: 100%;
+  width: 100%;
+}
+
+/* Glassmorphism Utility */
+.glass {
+  background: var(--vtx-glass);
+  backdrop-filter: blur(var(--vtx-blur));
+  -webkit-backdrop-filter: blur(var(--vtx-blur));
+  border: 1px solid var(--vtx-glass-border);
+  border-radius: var(--vtx-radius);
+}

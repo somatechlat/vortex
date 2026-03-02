@@ -5,20 +5,26 @@ phases:
     commands:
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
-      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/vortex-worker
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=$COMMIT_HASH
+      - REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
   build:
     commands:
       - echo Build started on `date`
-      - echo Building the Docker image...
-      - docker build -f gemini/docker/Dockerfile.worker.cuda -t $REPOSITORY_URI:$IMAGE_TAG .
+      - echo Building VORTEX Cluster images...
+      - docker build -f docker/Dockerfile.worker.cuda -t $REGISTRY/vortex-worker:$IMAGE_TAG .
+      - docker build -f docker/Dockerfile.core -t $REGISTRY/vortex-core:$IMAGE_TAG .
+      - docker build -f docker/Dockerfile.admin -t $REGISTRY/vortex-admin:$IMAGE_TAG .
+      - docker build -f docker/Dockerfile.ui -t $REGISTRY/vortex-ui:$IMAGE_TAG .
   post_build:
     commands:
       - echo Build completed on `date`
-      - echo Pushing the Docker image...
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Pushing VORTEX Cluster images...
+      - docker push $REGISTRY/vortex-worker:$IMAGE_TAG
+      - docker push $REGISTRY/vortex-core:$IMAGE_TAG
+      - docker push $REGISTRY/vortex-admin:$IMAGE_TAG
+      - docker push $REGISTRY/vortex-ui:$IMAGE_TAG
       - echo Writing image definitions file...
-      - printf '[{"name":"vortex-worker","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - printf '[{"name":"vortex-worker","imageUri":"%s"},{"name":"vortex-core","imageUri":"%s"},{"name":"vortex-admin","imageUri":"%s"},{"name":"vortex-ui","imageUri":"%s"}]' $REGISTRY/vortex-worker:$IMAGE_TAG $REGISTRY/vortex-core:$IMAGE_TAG $REGISTRY/vortex-admin:$IMAGE_TAG $REGISTRY/vortex-ui:$IMAGE_TAG > imagedefinitions.json
 artifacts:
     files: imagedefinitions.json

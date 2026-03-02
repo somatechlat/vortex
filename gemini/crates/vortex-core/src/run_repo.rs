@@ -46,10 +46,10 @@ impl RunRepository {
 
     /// Update status and progress
     pub async fn update_status(
-        &self, 
-        id: &str, 
-        status: run::RunStatus, 
-        progress: f32, 
+        &self,
+        id: &str,
+        status: run::RunStatus,
+        progress: f32,
         current_node: Option<String>
     ) -> VortexResult<()> {
         let run = run::Entity::find_by_id(id.to_string())
@@ -60,10 +60,10 @@ impl RunRepository {
 
         let mut run: run::ActiveModel = run.into();
         run.status = Set(status);
-        // progress and current_node are not in the current run::Model, 
+        // progress and current_node are not in the current run::Model,
         // I should probably add them if they are needed.
         // For now, staying consistent with entities.rs
-        
+
         run.update(self.db.connection())
             .await
             .map_err(|e| VortexError::Internal(e.to_string()))?;
@@ -111,11 +111,21 @@ impl RunRepository {
             duration_us,
             peak_vram_mb,
         };
-        
+
         let active_model: run_step::ActiveModel = model.into();
         active_model.insert(self.db.connection())
             .await
             .map_err(|e| VortexError::Internal(e.to_string()))?;
         Ok(())
+    }
+
+    /// Count completed steps for a run (used for progress computation)
+    pub async fn count_steps(&self, run_id: &str) -> VortexResult<u64> {
+        let count = run_step::Entity::find()
+            .filter(run_step::Column::RunId.eq(run_id))
+            .count(self.db.connection())
+            .await
+            .map_err(|e| VortexError::Internal(e.to_string()))?;
+        Ok(count)
     }
 }

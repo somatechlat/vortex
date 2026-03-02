@@ -55,7 +55,7 @@ impl HardwareCapabilities {
         let cpu_cores = num_cpus::get();
         let ram_bytes = Self::detect_ram();
         let (gpus, cuda_available, cuda_version) = Self::detect_gpus();
-        
+
         Self {
             cpu_cores,
             ram_bytes,
@@ -64,12 +64,12 @@ impl HardwareCapabilities {
             cuda_version,
         }
     }
-    
+
     /// Check if system has usable GPU
     pub fn has_gpu(&self) -> bool {
         self.cuda_available && !self.gpus.is_empty()
     }
-    
+
     /// Get recommended compute mode based on hardware
     pub fn recommended_compute_mode(&self) -> ComputeMode {
         if self.has_gpu() && self.gpus.iter().any(|g| g.vram_bytes >= 8 * 1024 * 1024 * 1024) {
@@ -78,7 +78,7 @@ impl HardwareCapabilities {
             ComputeMode::Cpu
         }
     }
-    
+
     fn detect_ram() -> u64 {
         env::var("VORTEX_AVAILABLE_RAM_GB")
             .ok()
@@ -86,12 +86,12 @@ impl HardwareCapabilities {
             .map(|gb| gb * 1024 * 1024 * 1024)
             .unwrap_or(8 * 1024 * 1024 * 1024) // Default 8GB
     }
-    
+
     fn detect_gpus() -> (Vec<GpuDevice>, bool, Option<String>) {
         let output = Command::new("nvidia-smi")
             .args(["--query-gpu=index,name,memory.total,compute_cap", "--format=csv,noheader,nounits"])
             .output();
-        
+
         match output {
             Ok(out) if out.status.success() => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -111,14 +111,14 @@ impl HardwareCapabilities {
                         }
                     })
                     .collect();
-                
+
                 let cuda_version = Command::new("nvidia-smi")
                     .args(["--query-gpu=driver_version", "--format=csv,noheader"])
                     .output()
                     .ok()
                     .and_then(|o| String::from_utf8(o.stdout).ok())
                     .map(|s| s.trim().to_string());
-                
+
                 let has_cuda = !gpus.is_empty();
                 (gpus, has_cuda, cuda_version)
             }
@@ -161,28 +161,33 @@ impl SystemConfig {
                         tracing::error!(error = %build_err, "Failed to build sandbox config; using minimal fallback config");
                         vortex_config::VortexConfig {
                             mode: DeploymentMode::Sandbox,
-                            services: vortex_config::ServiceConfig::default(),
+                            services: vortex_config::ServiceConfig {
+                                vault_addr: "http://localhost:8200".to_string(),
+                                keycloak_issuer: "http://localhost:8080/realms/vortex".to_string(),
+                                spicedb_endpoint: "http://localhost:50051".to_string(),
+                                milvus_endpoint: "http://localhost:19530".to_string(),
+                            },
                             security: vortex_config::SecurityConfig::default(),
                             database: vortex_config::DatabaseConfig::default(),
                             worker: vortex_config::WorkerConfig::default(),
                             api: vortex_config::ApiConfig::default(),
-                            features: vortex_config::FeatureFlags::live(),
+                            features: vortex_config::FeatureFlags::sandbox(),
                             resources: vortex_config::ResourceLimits::sandbox(),
-                            logging: vortex_config::LoggingConfig::live(),
+                            logging: vortex_config::LoggingConfig::sandbox(),
                             tenancy: vortex_config::TenancyConfig::default(),
                         }
                     }
                 }
             }
         };
-        
+
         let hardware = HardwareCapabilities::detect();
         let compute_mode = if hardware.has_gpu() {
             ComputeMode::Gpu
         } else {
             ComputeMode::Cpu
         };
-        
+
         let log_level = match config.logging.level {
             vortex_config::LogLevel::Trace => "trace",
             vortex_config::LogLevel::Debug => "debug",
@@ -190,7 +195,7 @@ impl SystemConfig {
             vortex_config::LogLevel::Warn => "warn",
             vortex_config::LogLevel::Error => "error",
         }.to_string();
-        
+
         Self {
             deployment_mode: config.mode,
             hardware,
@@ -200,7 +205,7 @@ impl SystemConfig {
             limits: config.resources,
         }
     }
-    
+
     /// Log detected configuration
     pub fn log_config(&self) {
         tracing::info!(
@@ -228,7 +233,7 @@ mod tests {
         assert!(hw.cpu_cores > 0);
         assert!(hw.ram_bytes > 0);
     }
-    
+
     #[test]
     fn test_system_config_build() {
         let config = SystemConfig::build();

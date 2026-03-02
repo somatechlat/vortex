@@ -6,8 +6,24 @@ use crate::client::McpTool;
 pub struct McpToolMapper;
 
 impl McpToolMapper {
-    /// Map an MCP tool to a native VORTEX NodeDef.
-    pub fn map_to_node_def(tool: &McpTool) -> NodeDef {
+    /// Map an MCP tool to a native VORTEX NodeDef with optional namespace
+    /// to prevent collisions across MCP clients.
+    pub fn map_to_node_def_with_namespace(tool: &McpTool, namespace: Option<&str>) -> NodeDef {
+        let type_id = match namespace {
+            Some(ns) if !ns.is_empty() => format!("mcp.{}.{}", ns, tool.name),
+            _ => format!("mcp.{}", tool.name),
+        };
+
+        let display_name = match namespace {
+            Some(ns) if !ns.is_empty() => format!("{}::{}", ns, tool.name),
+            _ => tool.name.clone(),
+        };
+
+        let category = match namespace {
+            Some(ns) if !ns.is_empty() => format!("MCP Toolbox ({})", ns),
+            _ => "MCP Toolbox".into(),
+        };
+
         let mut inputs = Vec::new();
 
         // Parse input_schema (JSON Schema)
@@ -30,27 +46,30 @@ impl McpToolMapper {
             }
         }
 
-        // MCP tools traditionally return a single object or string.
-        // We map this to a single output port for now.
         let outputs = vec![PortDef {
             name: "output".into(),
             label: "Output".into(),
-            data_type: DataType::DataString as i32, // Defaulting to string for toolbox
+            data_type: DataType::DataString as i32,
             required: true,
             default_json: Vec::new(),
             description: "Result from tool call".into(),
         }];
 
         NodeDef {
-            type_id: format!("mcp.{}", tool.name),
-            display_name: tool.name.clone(),
-            category: "MCP Toolbox".into(),
+            type_id,
+            display_name,
+            category,
             description: tool.description.clone().unwrap_or_default(),
             inputs,
             outputs,
             author: "MCP Server".into(),
             version: "1.0.0".into(),
         }
+    }
+
+    /// Map an MCP tool to a native VORTEX NodeDef.
+    pub fn map_to_node_def(tool: &McpTool) -> NodeDef {
+        Self::map_to_node_def_with_namespace(tool, None)
     }
 
     fn map_json_type_to_vortex(schema: &Value) -> DataType {

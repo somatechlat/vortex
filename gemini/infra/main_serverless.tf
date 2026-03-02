@@ -11,6 +11,24 @@ resource "aws_ecr_repository" "vortex_worker" {
   }
 }
 
+resource "aws_ecr_repository" "vortex_core" {
+  name                 = "vortex-core"
+  image_tag_mutability = "IMMUTABLE"
+  image_scanning_configuration { scan_on_push = true }
+}
+
+resource "aws_ecr_repository" "vortex_admin" {
+  name                 = "vortex-admin"
+  image_tag_mutability = "IMMUTABLE"
+  image_scanning_configuration { scan_on_push = true }
+}
+
+resource "aws_ecr_repository" "vortex_ui" {
+  name                 = "vortex-ui"
+  image_tag_mutability = "IMMUTABLE"
+  image_scanning_configuration { scan_on_push = true }
+}
+
 locals {
   worker_image_uri = var.sagemaker_worker_image_uri
 }
@@ -193,7 +211,7 @@ resource "aws_codebuild_project" "vortex_build" {
   }
 
   environment {
-    compute_type                = "BUILD_GENERAL1_LARGE" # 15GB RAM, 8 vCPUs (for faster concurrent compiles)
+    compute_type                = "BUILD_GENERAL1_SMALL" # Budget Friendly: 3GB RAM, 2 vCPUs
     image                       = "aws/codebuild/standard:7.0"
     type                        = "LINUX_CONTAINER"
     image_pull_credentials_type = "CODEBUILD"
@@ -210,11 +228,11 @@ resource "aws_codebuild_project" "vortex_build" {
   }
 
   source {
-    type            = "GITHUB"
-    location        = "https://github.com/somatechlat/vortex.git"
+    type            = "CODECOMMIT"
+    location        = "https://git-codecommit.${var.aws_region}.amazonaws.com/repos/vortex"
     git_clone_depth = 1
 
-    buildspec = "gemini/buildspec.yml"
+    buildspec = "buildspec.yml"
   }
 
   logs_config {
@@ -282,4 +300,53 @@ resource "aws_iam_role_policy" "codebuild_policy" {
       }
     ]
   })
+}
+
+# -----------------------------------------------------------------------------
+# ECS Task Definitions & Services (Budget-Friendly Testing Stack)
+# -----------------------------------------------------------------------------
+
+resource "aws_ecs_task_definition" "vortex_core" {
+  family                   = "vortex-core"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "256" # 0.25 vCPU
+  memory                   = "512" # 0.5 GB
+  execution_role_arn       = aws_iam_role.ecs_execution.arn
+
+  container_definitions = jsonencode([{
+    name  = "vortex-core"
+    image = "${aws_ecr_repository.vortex_core.repository_url}:latest"
+    portMappings = [{ containerPort = 11188, hostPort = 11188 }]
+  }])
+}
+
+resource "aws_ecs_task_definition" "vortex_admin" {
+  family                   = "vortex-admin"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = aws_iam_role.ecs_execution.arn
+
+  container_definitions = jsonencode([{
+    name  = "vortex-admin"
+    image = "${aws_ecr_repository.vortex_admin.repository_url}:latest"
+    portMappings = [{ containerPort = 8000, hostPort = 8000 }]
+  }])
+}
+
+resource "aws_ecs_task_definition" "vortex_ui" {
+  family                   = "vortex-ui"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = aws_iam_role.ecs_execution.arn
+
+  container_definitions = jsonencode([{
+    name  = "vortex-ui"
+    image = "${aws_ecr_repository.vortex_ui.repository_url}:latest"
+    portMappings = [{ containerPort = 80, hostPort = 80 }]
+  }])
 }

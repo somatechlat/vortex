@@ -1,15 +1,22 @@
-FROM python:3.12-slim
+# VORTEX Worker - CPU Image
+FROM python:3.11-slim
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app/worker
-COPY worker /app/worker
+COPY worker/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-ARG WORKER_REQUIREMENTS=requirements.sandbox.txt
-RUN pip install --no-cache-dir -r "${WORKER_REQUIREMENTS}"
+COPY worker/ .
 
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app/worker
-CMD ["python", "-m", "vortex_worker.main"]
+# Create non-root user
+RUN useradd -m -u 1000 vortex
+RUN chown -R vortex:vortex /app
+USER vortex
+
+CMD ["python", "-m", "vortex_worker"]

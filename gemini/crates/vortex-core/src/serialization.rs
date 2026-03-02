@@ -131,8 +131,11 @@ impl Tensor {
         // Convert shape to i64 for DLPack (C-compatible)
         let dl_shape: Vec<i64> = shape.iter().map(|&s| s as i64).collect();
 
-        // Create strides (row-major, all 1 for contiguous arrays)
-        let strides: Vec<i64> = vec![1; shape.len()];
+        // Create strides (row-major: stride[i] = product of shape[i+1..])
+        let mut strides: Vec<i64> = vec![1; shape.len()];
+        for i in (0..shape.len().saturating_sub(1)).rev() {
+            strides[i] = strides[i + 1] * dl_shape[i + 1];
+        }
 
         // dlpack-sys 0.1.1 DLTensor requires strides field
         let dl_tensor = DLTensor {
@@ -201,7 +204,7 @@ impl Tensor {
         let kdl_float = dlpack_sys::DLDataTypeCode_kDLFloat as u8;
         let kdl_int = dlpack_sys::DLDataTypeCode_kDLInt as u8;
         let kdl_uint = dlpack_sys::DLDataTypeCode_kDLUInt as u8;
-        
+
         let element_size = match (self.dtype.code, self.dtype.bits) {
             (c, 32) if c == kdl_float || c == kdl_int => 4,
             (c, 64) if c == kdl_float || c == kdl_int => 8,
@@ -277,7 +280,7 @@ impl TensorFactory {
     pub fn get_shm_size(&self, tensor: &Tensor) -> usize {
         let max_vram_bytes = self.config.worker.max_vram_mb as usize * 1024 * 1024;
         let tensor_size = tensor.nbytes();
-        
+
         std::cmp::min(tensor_size, max_vram_bytes)
     }
 
@@ -307,7 +310,7 @@ mod tests {
         let original = array![[1.0, 2.0], [3.0, 4.0]].into_dyn();
         let tensor = Tensor::from_ndarray(original.clone()).unwrap();
         let recovered = tensor.to_ndarray::<f32>().unwrap();
-        
+
         assert_eq!(original, recovered);
     }
 
@@ -315,7 +318,7 @@ mod tests {
     fn test_tensor_shape() {
         let arr = array![[1, 2, 3], [4, 5, 6]].into_dyn();
         let tensor = Tensor::from_ndarray(arr).unwrap();
-        
+
         assert_eq!(tensor.shape(), &[2, 3]);
     }
 
@@ -323,7 +326,7 @@ mod tests {
     fn test_tensor_nbytes() {
         let arr = array![[1.0f32, 2.0], [3.0, 4.0]].into_dyn();
         let tensor = Tensor::from_ndarray(arr).unwrap();
-        
+
         assert_eq!(tensor.nbytes(), 16);
     }
 
@@ -332,7 +335,7 @@ mod tests {
         let device = DeviceType::CUDA;
         let dl_device = device.to_dl_device();
         let recovered = DeviceType::from_dl_device(dl_device);
-        
+
         assert_eq!(recovered, Some(DeviceType::CUDA));
     }
 }

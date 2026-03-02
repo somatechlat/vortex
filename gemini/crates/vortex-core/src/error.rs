@@ -12,7 +12,7 @@ pub type VortexResult<T> = Result<T, VortexError>;
 #[derive(Error, Debug)]
 pub enum VortexError {
     // === Graph Compilation Errors (VE-0xx) ===
-    
+
     /// VE-001: Graph contains a cycle (A->B->A)
     #[error("VE-001 CycleDetected: Graph contains a cycle involving nodes: {nodes:?}")]
     CycleDetected { nodes: Vec<String> },
@@ -46,7 +46,7 @@ pub enum VortexError {
     IntegrityError { resource: String },
 
     // === System Errors (SYS-0xx) ===
-    
+
     /// SYS-001: Shared memory open failed
     #[error("SYS-001 ShmFailure: shm_open failed: {reason}")]
     ShmFailure { reason: String },
@@ -64,32 +64,32 @@ pub enum VortexError {
     IpcFailure { reason: String },
 
     // === Database Errors ===
-    
+
     #[error("Database error: {0}")]
-    Database(#[from] sqlx::Error),
+    Database(#[from] sea_orm::DbErr),
 
     // === IO Errors ===
-    
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
     // === Serialization Errors ===
-    
+
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
     // === Tenant Errors ===
-    
+
     #[error("Tenant error: {0}")]
     Tenant(String),
 
     // === Authorization Errors ===
-    
+
     #[error("Authorization error: {0}")]
     Authorization(String),
 
     // === Generic Errors ===
-    
+
     #[error("Internal error: {0}")]
     Internal(String),
 }

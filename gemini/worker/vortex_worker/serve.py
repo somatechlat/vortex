@@ -44,35 +44,61 @@ def init_shm():
 
 # -----------------------------------------------------------------------------
 # Django Configuration (Single File)
+# Uses centralized settings_base for secrets and security.
 # -----------------------------------------------------------------------------
 
 if not settings.configured:
-    # Fetch Secret from Vault
-    # Path: secret/vortex/prod, Key: django_secret_key
-    SECRET_KEY = get_vault_secret("vortex/prod", "django_secret_key", default=os.getenv("DJANGO_SECRET_KEY_FALLBACK", "django-insecure-build-only"))
+    # Vault-first secret chain: Vault → ENV → CI ephemeral → HARD FAIL
+    SECRET_KEY = get_vault_secret(
+        "vortex/prod", "django_secret_key",
+        default=os.getenv("VORTEX_WORKER_SECRET_KEY"),
+    )
+    if not SECRET_KEY:
+        # Fallback to centralized secret key logic
+        try:
+            import sys as _sys
+            _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            if _project_root not in _sys.path:
+                _sys.path.insert(0, _project_root)
+            from admin.common.settings_base import get_secret_key, get_allowed_hosts, get_logging_config
+            SECRET_KEY = get_secret_key("WORKER")
+            _ALLOWED_HOSTS = get_allowed_hosts()
+            _LOGGING = get_logging_config("WORKER")
+        except (ImportError, RuntimeError):
+            # Worker may run in isolated container without admin package
+            # In that case, env var is mandatory
+            SECRET_KEY = os.getenv("VORTEX_DJANGO_SECRET_KEY")
+            if not SECRET_KEY:
+                raise RuntimeError(
+                    "FATAL: No SECRET_KEY for worker. Set VORTEX_WORKER_SECRET_KEY "
+                    "or VORTEX_DJANGO_SECRET_KEY, or configure Vault."
+                )
+            _ALLOWED_HOSTS = [h.strip() for h in os.getenv("VORTEX_ALLOWED_HOSTS", "localhost,127.0.0.1,::1").split(",")]
+            _LOGGING = {
+                "version": 1,
+                "disable_existing_loggers": False,
+                "handlers": {"console": {"class": "logging.StreamHandler"}},
+                "root": {"handlers": ["console"], "level": "INFO"},
+            }
+    else:
+        _ALLOWED_HOSTS = [h.strip() for h in os.getenv("VORTEX_ALLOWED_HOSTS", "localhost,127.0.0.1,::1").split(",")]
+        _LOGGING = {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "handlers": {"console": {"class": "logging.StreamHandler"}},
+            "root": {"handlers": ["console"], "level": "INFO"},
+        }
 
     settings.configure(
         DEBUG=False,
         SECRET_KEY=SECRET_KEY,
         ROOT_URLCONF=__name__,
-        ALLOWED_HOSTS=["*"],
+        ALLOWED_HOSTS=_ALLOWED_HOSTS,
         INSTALLED_APPS=[
             "django.contrib.contenttypes",
             "ninja",
         ],
-        LOGGING={
-            "version": 1,
-            "disable_existing_loggers": False,
-            "handlers": {
-                "console": {
-                    "class": "logging.StreamHandler",
-                },
-            },
-            "root": {
-                "handlers": ["console"],
-                "level": "INFO",
-            },
-        },
+        LOGGING=_LOGGING,
     )
 
 # -----------------------------------------------------------------------------

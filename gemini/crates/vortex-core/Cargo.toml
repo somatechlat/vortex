@@ -32,8 +32,8 @@ salsa.workspace = true
 prost.workspace = true
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "macros", "json", "chrono", "uuid"] }
-sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "sqlite", "macros", "json", "chrono", "uuid"] }
+sea-orm = { version = "0.12", features = ["sqlx-postgres", "sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
 
 # IPC - Unix Domain Sockets
 nix.workspace = true

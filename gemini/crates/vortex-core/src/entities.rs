@@ -22,6 +22,8 @@ pub mod run {
         Completed,
         #[sea_orm(string_value = "FAILED")]
         Failed,
+        #[sea_orm(string_value = "CANCELLED")]
+        Cancelled,
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]

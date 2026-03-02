@@ -34,7 +34,7 @@ impl Database {
         // Production: PostgreSQL
         let user = std::env::var("POSTGRES_USER").unwrap_or_else(|_| "vortex".to_string());
         let pass = std::env::var("POSTGRES_PASSWORD").unwrap_or_default();
-        
+
         let url = format!(
             "postgres://{}:{}@{}:{}/{}",
             user,
@@ -79,11 +79,23 @@ impl Database {
         tracing::info!("Connecting to SQLite (testing mode with real database)");
 
         let url = "sqlite::memory:";
-        let opt = ConnectOptions::new(url);
+        let mut opt = ConnectOptions::new(url);
+        opt.max_connections(1)
+           .min_connections(1);
+
         let conn = sea_orm::Database::connect(opt).await
             .map_err(|e| crate::error::VortexError::Internal(e.to_string()))?;
 
         Ok(Self { conn, db_type: DbType::SQLite })
+    }
+
+    #[cfg(test)]
+    /// Sync wrapper for creating a mock database (used in tests)
+    pub fn new_mock() -> Self {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime for mock DB");
+        rt.block_on(async {
+            Self::connect_sqlite().await.expect("Failed to connect to sqlite for mock DB")
+        })
     }
 
     /// Access the underlying SeaORM connection
@@ -116,20 +128,20 @@ impl Database {
                     tracing::warn!("Schema sync warning (safe to ignore if exists): {}", e);
                 }
             }
-            
+
             tracing::info!("Database schema synchronized.");
         }
-        
+
         Ok(())
     }
-    
+
     /// Insert a new run
     pub async fn insert_run(&self, run_data: run::Model) -> VortexResult<()> {
         let active_model: run::ActiveModel = run_data.into();
         active_model.insert(&self.conn).await.map_err(|e| crate::error::VortexError::Internal(e.to_string()))?;
         Ok(())
     }
-    
+
     /// Update run status
     pub async fn update_run_status(
         &self,
@@ -148,24 +160,37 @@ impl Database {
         run.status = Set(status);
         run.completed_at = Set(completed_at);
         run.error_json = Set(error_json);
-        
+
         run.update(&self.conn).await.map_err(|e| crate::error::VortexError::Internal(e.to_string()))?;
         Ok(())
     }
-    
+
     /// Insert a step metric
     pub async fn insert_step(&self, step_data: run_step::Model) -> VortexResult<()> {
         let active_model: run_step::ActiveModel = step_data.into();
         active_model.insert(&self.conn).await.map_err(|e| crate::error::VortexError::Internal(e.to_string()))?;
         Ok(())
     }
-    
+
     /// Get a run by ID
     pub async fn get_run(&self, run_id: &str) -> VortexResult<Option<run::Model>> {
         run::Entity::find_by_id(run_id.to_string())
             .one(&self.conn)
             .await
             .map_err(|e| crate::error::VortexError::Internal(e.to_string()))
+    }
+
+    /// Ping the database to verify connectivity (used by health checks)
+    pub async fn ping(&self) -> VortexResult<()> {
+        use sea_orm::ConnectionTrait;
+        self.conn
+            .execute(sea_orm::Statement::from_string(
+                self.conn.get_database_backend(),
+                "SELECT 1".to_string(),
+            ))
+            .await
+            .map_err(|e| crate::error::VortexError::Internal(e.to_string()))?;
+        Ok(())
     }
 }
 

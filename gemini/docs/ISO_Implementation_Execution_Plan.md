@@ -27,6 +27,7 @@ Out of scope:
 - `gemini/docs/specs/02_frontend_ui_srs.md`
 - `gemini/docs/specs/03_compute_fabric_srs.md`
 - `gemini/docs/specs/04_registry_srs.md`
+- `gemini/docs/specs/09_agent_journey_creation_srs.md`
 - `gemini/docs/design/00_system_design.md`
 - `gemini/docs/coding_rules.md`
 

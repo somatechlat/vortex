@@ -76,7 +76,7 @@ impl VortexServer {
         &self.db
     }
 
-    /// Run the server on specified port
+    /// Run the server on specified port with graceful shutdown
     pub async fn run(self, port: u16) -> VortexResult<()> {
         let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
         let router = self.router();
@@ -88,10 +88,37 @@ impl VortexServer {
             .map_err(|e| VortexError::Internal(e.to_string()))?;
 
         axum::serve(listener, router)
+            .with_graceful_shutdown(Self::shutdown_signal())
             .await
             .map_err(|e| VortexError::Internal(e.to_string()))?;
 
+        tracing::info!("VORTEX API server shut down gracefully");
         Ok(())
+    }
+
+    /// Listen for SIGTERM or SIGINT for graceful shutdown
+    async fn shutdown_signal() {
+        let ctrl_c = async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Failed to install Ctrl+C handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("Failed to install SIGTERM handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = ctrl_c => tracing::info!("Received SIGINT, shutting down..."),
+            _ = terminate => tracing::info!("Received SIGTERM, shutting down..."),
+        }
     }
 }
 
@@ -116,10 +143,10 @@ pub async fn start_server() -> VortexResult<()> {
 
     let server = VortexServer::from_config(config, db).await?;
 
-    // Start background clock tick (1 tick = 1ms)
+    // Start background clock tick (100ms — sufficient for heartbeat detection)
     let shm_clone = server.shm.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_millis(1));
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(100));
         loop {
             interval.tick().await;
             shm_clone.header().tick();

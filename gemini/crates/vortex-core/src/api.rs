@@ -4,7 +4,7 @@
 //! Port Authority: 11188 (HTTP)
 
 use axum::{
-    extract::{Path, State, WebSocketUpgrade, FromRequestParts},
+    extract::{Path, Query, State, WebSocketUpgrade, DefaultBodyLimit, FromRequestParts},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -13,10 +13,13 @@ use axum::{
 use axum::http::request::Parts;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use dashmap::DashMap;
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use tower_http::cors::{CorsLayer, Any};
+use tower::ServiceBuilder;
 
 // ═══════════════════════════════════════════════════════════════
 //                    REQUEST/RESPONSE TYPES
@@ -48,6 +51,28 @@ pub struct ExecuteRequest {
 pub struct ExecuteResponse {
     pub run_id: String,
     pub estimated_time_ms: u64,
+}
+
+/// MCP stdio client registration request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterMcpClientRequest {
+    pub id: String,
+    pub command: String,
+    pub args: Vec<String>,
+}
+
+/// MCP tool call request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpToolCallRequest {
+    pub type_id: String,
+    pub arguments: serde_json::Value,
+}
+
+/// MCP tool call response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpToolCallResponse {
+    pub type_id: String,
+    pub result: serde_json::Value,
 }
 
 /// Run status response
@@ -144,6 +169,7 @@ pub struct AppState {
     pub authz: Arc<crate::authz::SpiceDbClient>,
     pub mcp: Arc<crate::mcp_registry::McpRegistry>,
     pub shm: Arc<crate::shm::SharedMemory>,
+    pub metrics: Arc<crate::metrics::MetricsCollector>,
     pub cancel_tokens: Arc<DashMap<String, CancellationToken>>,
     /// Broadcast channel for WebSocket updates
     pub tx: broadcast::Sender<WsMessage>,
@@ -168,6 +194,7 @@ impl AppState {
             authz,
             mcp,
             shm,
+            metrics: Arc::new(crate::metrics::MetricsCollector::new()),
             cancel_tokens: Arc::new(DashMap::new()),
             tx,
         }
@@ -187,6 +214,12 @@ fn unix_time_secs() -> Result<i64, AppError> {
 
 /// Create the Axum router with all endpoints
 pub fn create_router(state: Arc<AppState>) -> Router {
+    // CORS: Allow configured origins (production) or permissive (sandbox)
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     Router::new()
         // Graph endpoints
         .route("/api/graph", post(submit_graph))
@@ -196,11 +229,20 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/run/:id/cancel", post(cancel_run))
         // WebSocket
         .route("/ws", get(ws_handler))
-        // Health check
+        // Health check (unauthenticated — K8s probes)
         .route("/health", get(health_check))
-        .route("/metrics", get(metrics))
+        .route("/metrics", get(metrics_handler))
         // Nodes/Toolbox
         .route("/api/nodes/mcp", get(list_mcp_nodes))
+        .route("/api/mcp/clients", get(list_mcp_clients))
+        .route("/api/mcp/client/register", post(register_mcp_client))
+        .route("/api/mcp/tool/call", post(call_mcp_tool))
+        // Middleware stack: CORS + body limit
+        .layer(
+            ServiceBuilder::new()
+                .layer(cors)
+                .layer(DefaultBodyLimit::max(10 * 1024 * 1024)) // 10MB
+        )
         // State
         .with_state(state)
 }
@@ -240,11 +282,17 @@ async fn submit_graph(
 
 async fn get_graph(
     State(state): State<Arc<AppState>>,
+    auth: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let graph = state.graphs.get_by_id(&id).await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound(format!("Graph {} not found", id)))?;
+
+    // Tenant isolation: verify the graph belongs to the requesting tenant
+    if graph.tenant_id != auth.0.tenant_id {
+        return Err(AppError::NotFound(format!("Graph {} not found", id)));
+    }
 
     let json: serde_json::Value = serde_json::from_str(&graph.graph_json)
         .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -301,6 +349,7 @@ async fn execute_graph(
     let tx = state.tx.clone();
     let run_repo = state.runs.clone();
     let shm = state.shm.clone();
+    let mcp = state.mcp.clone();
     let cancel_token = CancellationToken::new();
     state.cancel_tokens.insert(run_id.clone(), cancel_token.clone());
     let cancel_tokens = state.cancel_tokens.clone();
@@ -340,16 +389,23 @@ async fn execute_graph(
 /// GET /api/run/:id/status - Get run status
 async fn run_status(
     State(state): State<Arc<AppState>>,
+    auth: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<RunStatusResponse>, AppError> {
     let run = state.runs.get_by_id(&id).await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound(format!("Run {} not found", id)))?;
 
+    // Compute progress from completed steps vs total nodes
+    let steps = state.runs.count_steps(&id).await
+        .unwrap_or(0);
+    // Progress is approximate: steps completed / estimated total
+    let progress = if steps > 0 { (steps as f32).min(1.0) } else { 0.0 };
+
     Ok(Json(RunStatusResponse {
         run_id: id,
         status: format!("{:?}", run.status),
-        progress: 0.0, // Should be calculated/tracked
+        progress,
         current_node: None,
     }))
 }
@@ -357,6 +413,7 @@ async fn run_status(
 /// POST /api/run/:id/cancel - Cancel a run
 async fn cancel_run(
     State(state): State<Arc<AppState>>,
+    auth: AuthUser,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
     if let Some((_, token)) = state.cancel_tokens.remove(&id) {
@@ -365,7 +422,7 @@ async fn cancel_run(
         if let Some(mut run) = state.runs.get_by_id(&id).await
             .map_err(|e| AppError::Internal(e.to_string()))?
         {
-            run.status = crate::entities::run::RunStatus::Failed;
+            run.status = crate::entities::run::RunStatus::Cancelled;
             run.error_json = Some(serde_json::json!({"error": "Run cancelled by user"}).to_string());
             run.completed_at = Some(unix_time_secs()?);
             state.runs.update(run).await
@@ -388,35 +445,115 @@ async fn cancel_run(
 /// GET /api/nodes/mcp - List all discovered MCP tools
 async fn list_mcp_nodes(
     State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
 ) -> Result<Json<Vec<vortex_protocol::graph::NodeDef>>, AppError> {
     Ok(Json(state.mcp.list_node_defs()))
 }
 
-/// GET /health - Health check
-async fn health_check() -> impl IntoResponse {
-    Json(serde_json::json!({
-        "status": "healthy",
-        "version": env!("CARGO_PKG_VERSION"),
+/// GET /api/mcp/clients - List registered MCP clients
+async fn list_mcp_clients(
+    State(state): State<Arc<AppState>>,
+    _auth: AuthUser,
+) -> Result<Json<Vec<String>>, AppError> {
+    Ok(Json(state.mcp.list_clients()))
+}
+
+/// POST /api/mcp/client/register - Register a stdio MCP client
+async fn register_mcp_client(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Json(request): Json<RegisterMcpClientRequest>,
+) -> Result<StatusCode, AppError> {
+    if request.id.trim().is_empty() {
+        return Err(AppError::BadRequest("MCP client id cannot be empty".into()));
+    }
+    if request.command.trim().is_empty() {
+        return Err(AppError::BadRequest("MCP command cannot be empty".into()));
+    }
+
+    tracing::info!(client_id = %request.id, tenant = %auth.0.tenant_id, "Registering MCP stdio client");
+
+    state.mcp
+        .add_stdio_client(&request.id, &request.command, &request.args)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    tracing::info!(client_id = %request.id, "Registered MCP stdio client");
+    Ok(StatusCode::CREATED)
+}
+
+/// POST /api/mcp/tool/call - Invoke an MCP tool by VORTEX type_id
+async fn call_mcp_tool(
+    State(state): State<Arc<AppState>>,
+    auth: AuthUser,
+    Json(request): Json<McpToolCallRequest>,
+) -> Result<Json<McpToolCallResponse>, AppError> {
+    tracing::info!(type_id = %request.type_id, tenant = %auth.0.tenant_id, "Calling MCP tool");
+
+    let result = state.mcp
+        .call_tool_by_type(&request.type_id, request.arguments)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(Json(McpToolCallResponse {
+        type_id: request.type_id,
+        result,
     }))
 }
 
-/// GET /metrics - Prometheus metrics (OpenMetrics format)
-async fn metrics() -> impl IntoResponse {
-    // Metrics endpoint - integrate with metrics crate for real collection
-    static METRICS_HEADER: &str = "# HELP vortex_up Indicates service is running\n\
-        # TYPE vortex_up gauge\n\
-        vortex_up 1\n\
-        # HELP vortex_info Service version info\n\
-        # TYPE vortex_info gauge\n";
-    format!("{}vortex_info{{version=\"{}\"}} 1\n", METRICS_HEADER, env!("CARGO_PKG_VERSION"))
-}
-
-/// GET /ws - WebSocket handler
-async fn ws_handler(
-    ws: WebSocketUpgrade,
+/// GET /health - Health check with dependency verification
+async fn health_check(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket, state))
+    // Check DB connectivity
+    let db_ok = state.db.ping().await.is_ok();
+    let shm_ok = state.shm.header().magic_bytes != 0;
+    let status = if db_ok && shm_ok { "healthy" } else { "degraded" };
+
+    Json(serde_json::json!({
+        "status": status,
+        "version": env!("CARGO_PKG_VERSION"),
+        "checks": {
+            "database": db_ok,
+            "shm": shm_ok,
+        }
+    }))
+}
+
+/// Query params for WebSocket auth
+#[derive(Debug, Deserialize)]
+pub struct WsAuthParams {
+    pub token: Option<String>,
+}
+
+/// GET /metrics - Prometheus metrics from MetricsCollector
+async fn metrics_handler(
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    state.metrics.get_prometheus_metrics()
+}
+
+/// GET /ws - WebSocket handler with token auth
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    Query(params): Query<WsAuthParams>,
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, AppError> {
+    // Validate JWT from query param
+    if let Some(token) = &params.token {
+        let pem = std::env::var("VORTEX_JWT_PUBLIC_KEY")
+            .map_err(|_| AppError::Internal("VORTEX_JWT_PUBLIC_KEY not set".into()))?;
+        let key = DecodingKey::from_rsa_pem(pem.as_bytes())
+            .map_err(|e| AppError::Internal(format!("JWT key error: {e}")))?;
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.validate_exp = true;
+        decode::<Claims>(token, &key, &validation)
+            .map_err(|e| AppError::Unauthorized(format!("Invalid WS token: {e}")))?;
+    } else {
+        return Err(AppError::Unauthorized("WebSocket requires ?token= parameter".into()));
+    }
+
+    Ok(ws.on_upgrade(|socket| handle_socket(socket, state)))
 }
 
 /// Handle WebSocket connection

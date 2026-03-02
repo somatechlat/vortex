@@ -123,35 +123,45 @@ impl fmt::Debug for TensorID {
 //                    DATA TYPES
 // ═══════════════════════════════════════════════════════════════
 
-/// Tensor data types (matches Signal Bus lanes)
+/// Tensor data types (matches Signal Bus lanes and Protobuf indices)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[repr(u8)]
 pub enum DataType {
-    Latent = 0,
-    Image = 1,
-    Model = 2,
-    Clip = 3,
-    Vae = 4,
-    Conditioning = 5,
-    Mask = 6,
-    ControlNet = 7,
+    Unknown = 0,
+    Latent = 1,
+    Image = 2,
+    Model = 3,
+    Clip = 4,
+    Vae = 5,
+    Conditioning = 6,
+    Mask = 7,
+    ControlNet = 8,
+    String = 9,
+    Int = 10,
+    Float = 11,
+    Boolean = 12,
 }
 
 impl DataType {
     /// Get the CSS color for this data type (Signal Bus visualization)
     pub fn color(&self) -> &'static str {
         match self {
+            DataType::Unknown => "#94a3b8",      // Slate
             DataType::Latent => "#a855f7",       // Purple
-            DataType::Image => "#ef4444",         // Red
-            DataType::Model => "#3b82f6",         // Blue
-            DataType::Clip => "#22c55e",          // Green
-            DataType::Vae => "#f97316",           // Orange
-            DataType::Conditioning => "#06b6d4",  // Cyan
-            DataType::Mask => "#f59e0b",          // Amber
-            DataType::ControlNet => "#ec4899",    // Pink
+            DataType::Image => "#ef4444",        // Red
+            DataType::Model => "#3b82f6",        // Blue
+            DataType::Clip => "#22c55e",         // Green
+            DataType::Vae => "#f97316",          // Orange
+            DataType::Conditioning => "#06b6d4", // Cyan
+            DataType::Mask => "#f59e0b",         // Amber
+            DataType::ControlNet => "#ec4899",   // Pink
+            DataType::String => "#64748b",       // Slate 500
+            DataType::Int => "#84cc16",          // Lime
+            DataType::Float => "#06b6d4",        // Cyan
+            DataType::Boolean => "#f43f5e",      // Rose
         }
     }
-    
+
     /// Get the lane index for Signal Bus routing
     pub fn lane(&self) -> usize {
         *self as usize

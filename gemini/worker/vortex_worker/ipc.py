@@ -10,6 +10,7 @@ Uses the same protobuf schemas as the Rust host (vortex-protocol).
 import socket
 import struct
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -49,16 +50,41 @@ class IPCSocket:
     - N bytes: protobuf-encoded message
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, max_retries: int = 10):
         self.path = path
         self.sock: socket.socket | None = None
+        self.max_retries = max_retries
 
     def connect(self) -> None:
-        """Connect to the Rust host."""
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.connect(self.path)
-        self.sock.setblocking(False)
-        logger.info("IPC connected: %s", self.path)
+        """Connect to the Rust host with exponential backoff."""
+        delay = 0.5
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.sock.connect(self.path)
+                self.sock.setblocking(False)
+                logger.info("IPC connected: %s (attempt %d)", self.path, attempt)
+                return
+            except (ConnectionRefusedError, FileNotFoundError, OSError) as e:
+                logger.warning(
+                    "IPC connect failed (attempt %d/%d): %s. Retrying in %.1fs...",
+                    attempt, self.max_retries, e, delay,
+                )
+                if self.sock:
+                    self.sock.close()
+                    self.sock = None
+                time.sleep(delay)
+                delay = min(delay * 2, 30.0)
+
+        raise ConnectionError(
+            f"IPC connection to {self.path} failed after {self.max_retries} attempts"
+        )
+
+    def _reconnect(self) -> None:
+        """Attempt to reconnect after a socket failure."""
+        logger.warning("IPC connection lost, attempting reconnect...")
+        self.close()
+        self.connect()
 
     def close(self) -> None:
         """Close the connection."""
@@ -72,7 +98,7 @@ class IPCSocket:
         Returns None on timeout.
         """
         if not self.sock:
-            raise RuntimeError("Socket not connected")
+            self._reconnect()
 
         import select
 
@@ -138,7 +164,7 @@ class IPCSocket:
     def send_result(self, result: JobResult) -> None:
         """Send job result back to host."""
         if not self.sock:
-            raise RuntimeError("Socket not connected")
+            self._reconnect()
 
         # Create JobResult protobuf
         proto_result = control.JobResult()
